@@ -1,0 +1,80 @@
+{
+  "deck": "prv",
+  "code": "PRV",
+  "title": "Privacy & disclosure",
+  "blurb": "Re-identification, suppression and noise: what to check before a table or map goes public.",
+  "cards": [
+    {
+      "id": "prv-01",
+      "kind": "fact",
+      "prompt": "Sweeney's classic re-identification finding: which three attributes uniquely identify about 87% of the US population?",
+      "answer": "5-digit ZIP code, gender, and full date of birth.",
+      "source": "L. Sweeney, Simple Demographics Often Identify People Uniquely (2000)"
+    },
+    {
+      "id": "prv-02",
+      "kind": "concept",
+      "prompt": "What is k-anonymity, and what attack does it fail against?",
+      "answer": "Each record is indistinguishable from at least k-1 others on its quasi-identifiers. It fails against homogeneity: if everyone in the group shares the same sensitive value, that value is disclosed anyway. l-diversity addresses this, and background-knowledge attacks also defeat k-anonymity.",
+      "points": [
+        "Indistinguishable from k-1 others on quasi-identifiers",
+        "Homogeneity attack",
+        "Background knowledge attack",
+        "l-diversity as the fix for homogeneity"
+      ],
+      "source": "Sweeney (2002); Machanavajjhala et al. (2007)"
+    },
+    {
+      "id": "prv-03",
+      "kind": "concept",
+      "prompt": "You suppress one small cell in a published table but keep the row and column totals. What's the problem?",
+      "answer": "The hidden value can be recovered by subtracting from the totals. You need complementary (secondary) suppression of other cells, or rounding or perturbation, so that no hidden cell can be derived.",
+      "points": [
+        "Recoverable by subtraction from margins",
+        "Complementary suppression",
+        "Or rounding/perturbation"
+      ],
+      "source": "Federal Committee on Statistical Methodology, Statistical Policy Working Paper 22"
+    },
+    {
+      "id": "prv-04",
+      "kind": "fact",
+      "prompt": "What is CMS's cell-size rule for publishing counts from Medicare and Medicaid data?",
+      "answer": "Don't display counts of 1 to 10 (minimum cell size 11), including values that could be derived from other cells.",
+      "source": "CMS cell size suppression policy"
+    },
+    {
+      "id": "prv-05",
+      "kind": "concept",
+      "prompt": "Differential privacy in two sentences: what is guaranteed, and what does epsilon control?",
+      "answer": "Adding or removing any one person changes the probability of any output by at most a factor of e^epsilon, so results reveal little about any individual. A smaller epsilon means more noise and more privacy, and every query spends from a finite privacy-loss budget.",
+      "points": [
+        "One person's presence changes output probabilities by at most e^epsilon",
+        "Smaller epsilon = more noise, more privacy",
+        "Composition: queries spend a finite budget"
+      ],
+      "source": "Dwork & Roth, The Algorithmic Foundations of Differential Privacy (2014)"
+    },
+    {
+      "id": "prv-06",
+      "kind": "fact",
+      "prompt": "What changed about 2020 Census small-area counts, and what's the practical rule?",
+      "answer": "The Census Bureau's disclosure avoidance system for 2020 is based on differential privacy (the TopDown Algorithm), so block-level counts carry deliberate noise. Aggregate up to block groups or tracts for analysis, and treat individual block counts as unreliable.",
+      "source": "U.S. Census Bureau, 2020 Census Disclosure Avoidance System"
+    },
+    {
+      "id": "prv-07",
+      "kind": "judgment",
+      "prompt": "A department wants an open-data map of 311 requests with exact addresses. What risks do you raise, and what do you propose?",
+      "answer": "Exact points at single-family addresses identify households, and some request types are sensitive: welfare checks, possible domestic or mental-health situations, complaints about a neighbor. The person who complained can often be inferred. Propose aggregating to segment, block or tract, or snapping points to the block. Suppress small counts and exclude sensitive request types. Get legal or privacy review, and publish a data dictionary that explains the protections.",
+      "points": [
+        "Household identification at single-family addresses",
+        "Sensitive request types",
+        "Requester inference",
+        "Aggregate or snap locations; suppress small counts; exclude sensitive types",
+        "Privacy/legal review and documented protections"
+      ],
+      "source": "Synthesis"
+    }
+  ]
+}

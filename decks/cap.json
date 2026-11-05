@@ -1,0 +1,77 @@
+{
+  "deck": "cap",
+  "code": "CAP",
+  "title": "Capacity building",
+  "blurb": "Training evaluation, learning science and change models, for the half of the job that's about people.",
+  "cards": [
+    {
+      "id": "cap-01",
+      "kind": "fact",
+      "prompt": "Kirkpatrick's four levels of training evaluation, in order.",
+      "answer": "1. Reaction. 2. Learning. 3. Behavior. 4. Results.",
+      "why": "Most programs stop at level 1 (did they like it?). Level 3 (are they doing it on the job?) is where data-skills training succeeds or fails.",
+      "source": "Kirkpatrick & Kirkpatrick, Four Levels of Training Evaluation (2016)"
+    },
+    {
+      "id": "cap-02",
+      "kind": "concept",
+      "prompt": "What are 'desirable difficulties', and what trap do they create when you evaluate training?",
+      "answer": "Spacing, interleaving, retrieval practice and generation make practice feel harder and look worse in the moment, but they improve long-term retention and transfer. The trap is that performance during training is not learning, so smooth, easy sessions get good reviews and teach less.",
+      "points": [
+        "Spacing, interleaving, retrieval, generation",
+        "Feel harder and look worse in the moment",
+        "Better long-term retention and transfer",
+        "In-session performance and satisfaction are poor proxies for learning"
+      ],
+      "source": "Bjork & Bjork (2011); Soderstrom & Bjork (2015)"
+    },
+    {
+      "id": "cap-03",
+      "kind": "fact",
+      "prompt": "Rogers' adopter categories, with their shares.",
+      "answer": "Innovators 2.5%, early adopters 13.5%, early majority 34%, late majority 34%, laggards 16%.",
+      "source": "Everett Rogers, Diffusion of Innovations"
+    },
+    {
+      "id": "cap-04",
+      "kind": "fact",
+      "prompt": "Prosci's ADKAR: the five elements, in order.",
+      "answer": "Awareness, Desire, Knowledge, Ability, Reinforcement.",
+      "why": "As a diagnostic, find the first element that is missing. Training (Knowledge, Ability) fails if Awareness or Desire is absent.",
+      "source": "Jeff Hiatt, ADKAR (2006)"
+    },
+    {
+      "id": "cap-05",
+      "kind": "fact",
+      "prompt": "Wenger's three structural elements of a community of practice.",
+      "answer": "Domain (the shared area of concern), community (the people and their relationships), and practice (the shared repertoire of tools, methods and stories).",
+      "source": "Wenger, McDermott & Snyder, Cultivating Communities of Practice (2002)"
+    },
+    {
+      "id": "cap-06",
+      "kind": "judgment",
+      "prompt": "Design a Power BI training for analysts that changes what they do on the job, not just what they know.",
+      "answer": "Build it on their real tasks and their department's data. Run short sessions spaced over weeks, with participants building and retrieving rather than watching demos. Interleave skills, and give an on-the-job assignment between sessions. Back it with office hours and a champions network. Measure behavior (Kirkpatrick level 3): are they building on the certified shared model, and are their reports reused?",
+      "points": [
+        "Real tasks and real data",
+        "Spaced short sessions; building and retrieval over demos",
+        "On-the-job assignments between sessions",
+        "Office hours and champions for follow-through",
+        "Measure level 3 behavior (shared model use, report reuse)"
+      ],
+      "source": "Synthesis: Kirkpatrick; Bjork"
+    },
+    {
+      "id": "cap-07",
+      "kind": "concept",
+      "prompt": "What is the illusion of explanatory depth, and how do you use it in a stakeholder interview?",
+      "answer": "People believe they understand how something works in far more detail than they do. Asking them to explain the mechanism step by step exposes the gaps. Ask 'Walk me through how this number gets produced, from intake to report' rather than 'Do you understand the process?'",
+      "points": [
+        "Overestimated understanding of mechanisms",
+        "Step-by-step explanation reveals gaps",
+        "Interview with walk-throughs, not yes/no comprehension checks"
+      ],
+      "source": "Rozenblit & Keil, The misunderstood limits of folk science (2002)"
+    }
+  ]
+}

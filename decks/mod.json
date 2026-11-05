@@ -1,0 +1,100 @@
+{
+  "deck": "mod",
+  "code": "MOD",
+  "title": "Dimensional modeling & Power BI",
+  "blurb": "Grain, fact types, conformed dimensions and the DAX semantics behind a shared semantic model.",
+  "cards": [
+    {
+      "id": "mod-01",
+      "kind": "fact",
+      "prompt": "Kimball's four steps of dimensional design, in order.",
+      "answer": "1. Select the business process. 2. Declare the grain. 3. Identify the dimensions. 4. Identify the facts.",
+      "source": "Kimball & Ross, The Data Warehouse Toolkit, 3rd ed."
+    },
+    {
+      "id": "mod-02",
+      "kind": "concept",
+      "prompt": "What does 'declare the grain' mean, and what goes wrong if you skip it?",
+      "answer": "State exactly what one fact row represents, for example one row per service request per status change. Skip it and grains get mixed in one table, which causes double counting and measures that are right only at some levels of aggregation.",
+      "points": [
+        "Grain = the business meaning of one row",
+        "Declared before dimensions and facts are chosen",
+        "Mixed grains lead to double counting and inconsistent measures"
+      ],
+      "source": "Kimball & Ross"
+    },
+    {
+      "id": "mod-03",
+      "kind": "fact",
+      "prompt": "Pothole lifecycle (reported, dispatched, repaired, inspected), with one row per pothole whose date columns fill in over time. Which fact-table type?",
+      "answer": "Accumulating snapshot.",
+      "why": "Transaction: one row per event. Periodic snapshot: one row per period (open requests at month end). Accumulating snapshot: one row per process instance, updated as milestones occur. It's the natural home for durations like time-to-dispatch.",
+      "source": "Kimball & Ross"
+    },
+    {
+      "id": "mod-04",
+      "kind": "fact",
+      "prompt": "Slowly changing dimension Types 1, 2 and 3, one line each.",
+      "answer": "Type 1: overwrite (no history). Type 2: add a new row with effective dates and a current flag (full history). Type 3: add a previous-value column (one step of history).",
+      "source": "Kimball & Ross"
+    },
+    {
+      "id": "mod-05",
+      "kind": "concept",
+      "prompt": "What are a conformed dimension and a bus matrix, and why do they matter across departments?",
+      "answer": "A conformed dimension has the same keys and meaning everywhere it is used, such as one Address, Date or Department dimension. That lets you drill across business processes. A bus matrix lists processes as rows and conformed dimensions as columns. It is the roadmap that keeps department models compatible with each other.",
+      "points": [
+        "Same keys and meaning across fact tables",
+        "Enables drill-across between processes",
+        "Bus matrix = processes by shared dimensions, the integration plan"
+      ],
+      "source": "Kimball & Ross"
+    },
+    {
+      "id": "mod-06",
+      "kind": "concept",
+      "prompt": "In DAX, how do row context and filter context differ, and what does CALCULATE do with a row context?",
+      "answer": "Row context is iteration row by row (calculated columns, iterators like SUMX), and on its own it filters nothing. Filter context is the set of filters on the model (slicers, visuals, CALCULATE arguments). CALCULATE performs context transition: it turns the current row context into an equivalent filter context.",
+      "points": [
+        "Row context = iteration, doesn't filter",
+        "Filter context = filters on the model",
+        "CALCULATE converts row context to filter context (context transition)"
+      ],
+      "source": "Russo & Ferrari, The Definitive Guide to DAX (SQLBI)"
+    },
+    {
+      "id": "mod-07",
+      "kind": "concept",
+      "prompt": "Why does Power BI's engine favor a star schema over one wide flat table or a deep snowflake?",
+      "answer": "VertiPaq stores data by column, so low-cardinality dimension columns compress well, and dimensions filter facts through one-to-many relationships. A wide flat table repeats attributes and invites inconsistent measures and grain errors. A deep snowflake adds relationship hops and confuses report authors.",
+      "points": [
+        "Columnar compression favors low-cardinality dimension columns",
+        "Dimensions filter facts via one-to-many relationships",
+        "Flat tables: repetition, grain errors, inconsistent measures",
+        "Snowflakes: extra hops and author confusion"
+      ],
+      "source": "Microsoft Learn: Star schema guidance for Power BI"
+    },
+    {
+      "id": "mod-08",
+      "kind": "fact",
+      "prompt": "What is the default cross-filter direction for a one-to-many relationship in Power BI, and what's the risk of switching it to 'both'?",
+      "answer": "Single: the one side filters the many side. Bidirectional filtering can create ambiguous filter paths and slower queries. Keep relationships single and enable bidirectional filtering per measure (CROSSFILTER) or use TREATAS.",
+      "source": "Microsoft Learn: relationship guidance"
+    },
+    {
+      "id": "mod-09",
+      "kind": "judgment",
+      "prompt": "A department wants 'one big flat table' in Power BI so staff can self-serve. What do you recommend, and how do you sell it?",
+      "answer": "Name the risks: mixed grains, double counting, and every report reinventing its measures. Offer a shared semantic model instead: a star schema with a few conformed dimensions and curated measures. One certified dataset then feeds many reports. Teach staff to build reports on that model rather than their own extracts. Sell it with a before-and-after on their own numbers, ideally a total that comes out differently today depending on who built the report.",
+      "points": [
+        "Name the risks: grain, double counting, inconsistent measures",
+        "Propose a shared semantic model (star, conformed dimensions, curated measures)",
+        "One certified dataset feeds many reports",
+        "Train report building on the shared model",
+        "Persuade with their own numbers"
+      ],
+      "source": "Synthesis"
+    }
+  ]
+}

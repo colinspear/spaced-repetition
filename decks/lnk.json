@@ -1,0 +1,86 @@
+{
+  "deck": "lnk",
+  "code": "LNK",
+  "title": "Record linkage",
+  "blurb": "Fellegi-Sunter, blocking and thresholds: the math behind matching people, parcels and addresses across systems.",
+  "cards": [
+    {
+      "id": "lnk-01",
+      "kind": "fact",
+      "prompt": "Fellegi-Sunter: define the m- and u-probabilities for a field.",
+      "answer": "m = P(field agrees | the records are a true match). u = P(field agrees | the records are not a match).",
+      "source": "Fellegi & Sunter (1969)"
+    },
+    {
+      "id": "lnk-02",
+      "kind": "concept",
+      "prompt": "How do m and u become a match weight, and how do the weights combine?",
+      "answer": "Agreement on a field adds log2(m/u). Disagreement adds log2((1-m)/(1-u)). Assuming conditional independence, the field weights and the prior log-odds sum to a total match weight in log2 odds. Convert to a probability with p = 2^w / (1 + 2^w).",
+      "points": [
+        "Agreement weight log2(m/u)",
+        "Disagreement weight log2((1-m)/(1-u))",
+        "Sum across fields plus prior (conditional independence)",
+        "Weight is log-odds; convert to probability"
+      ],
+      "source": "Fellegi & Sunter (1969); Splink documentation"
+    },
+    {
+      "id": "lnk-03",
+      "kind": "concept",
+      "prompt": "What does blocking do, and what is its main failure mode?",
+      "answer": "Blocking compares only the record pairs that share a blocking key (say, same postcode and first initial), which turns n-squared comparisons into something tractable. Its failure mode is that a true match with an error in the blocking field is never compared at all. The fix is several blocking rules whose results are unioned.",
+      "points": [
+        "Restricts comparisons to candidate pairs",
+        "Errors in the blocking field cause unrecoverable misses",
+        "Use several blocking rules, unioned"
+      ],
+      "source": "Christen, Data Matching (2012)"
+    },
+    {
+      "id": "lnk-04",
+      "kind": "concept",
+      "prompt": "Why should agreement on 'Zbigniewski' count for more than agreement on 'Smith'?",
+      "answer": "Because u depends on the value. Two random people are far more likely to share a common surname than a rare one. A term-frequency adjustment computes u from the frequency of that specific value, so agreement on a rare value counts as stronger evidence.",
+      "points": [
+        "u varies by value frequency",
+        "Rare-value agreement is stronger evidence",
+        "Term-frequency adjustment"
+      ],
+      "source": "Splink documentation; Winkler"
+    },
+    {
+      "id": "lnk-05",
+      "kind": "fact",
+      "prompt": "How are u-probabilities usually estimated, and why does that work?",
+      "answer": "By randomly sampling record pairs. Almost all random pairs are non-matches, so their agreement rate approximates u. m comes from EM within blocks or from labeled pairs.",
+      "source": "Splink documentation"
+    },
+    {
+      "id": "lnk-06",
+      "kind": "judgment",
+      "prompt": "You are linking people between a city housing program and a county services dataset. How do you set match thresholds?",
+      "answer": "Use two thresholds: auto-link above the upper one, reject below the lower one, and send the band between them to clerical review. Set them from what each error costs in this use. A false merge, which combines two people's histories, usually does more harm here (wrong eligibility, privacy exposure) than a missed link. Estimate precision and recall on a labeled sample, size the review band to the staff who will work it, and monitor for drift.",
+      "points": [
+        "Two thresholds with a clerical-review band",
+        "Set from the asymmetric costs of false merges vs missed links",
+        "False merges usually worse in service contexts",
+        "Precision/recall on a labeled sample",
+        "Size the review band to capacity; monitor drift"
+      ],
+      "source": "Synthesis"
+    },
+    {
+      "id": "lnk-07",
+      "kind": "concept",
+      "prompt": "Why is an address string, on its own, a weak key for linking people?",
+      "answer": "Formats vary (St vs Street, unit designators, directionals). Many people share one address: households, multi-unit buildings, shelters. People move, so an address is only true for a period of time. PO boxes and institutional addresses add noise. Linking on address alone merges households into individuals.",
+      "points": [
+        "Format variation",
+        "Shared addresses (households, multi-unit, shelters)",
+        "Temporal: people move",
+        "Conflates households with individuals"
+      ],
+      "source": "General"
+    }
+  ]
+}

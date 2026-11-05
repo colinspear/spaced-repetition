@@ -1,0 +1,8 @@
+.venv/
+venv/
+__pycache__/
+node_modules/
+*.pyc
+# exports contain your review history; keep them out of this public repo
+card-catalog-*.json
+patch.json

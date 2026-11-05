@@ -1,0 +1,138 @@
+{
+  "deck": "civ",
+  "code": "CIV",
+  "title": "Civic data sources",
+  "blurb": "Census, crime, 311, parcels and addresses, plus the New York rules that govern records.",
+  "cards": [
+    {
+      "id": "civ-01",
+      "kind": "fact",
+      "prompt": "Which ACS estimates exist for a geography with 40,000 people: 1-year, 5-year, or both?",
+      "answer": "Only 5-year. Standard 1-year ACS estimates are published only for geographies of 65,000 or more.",
+      "source": "U.S. Census Bureau, Understanding and Using ACS Data"
+    },
+    {
+      "id": "civ-02",
+      "kind": "fact",
+      "prompt": "At what confidence level are ACS margins of error published?",
+      "answer": "90%.",
+      "why": "For a 95% MOE, multiply by 1.96 / 1.645, about 1.19.",
+      "source": "U.S. Census Bureau, ACS handbooks"
+    },
+    {
+      "id": "civ-03",
+      "kind": "fact",
+      "prompt": "What is the approximate MOE for a sum of ACS estimates (say, three tracts combined)?",
+      "answer": "The square root of the sum of the squared MOEs.",
+      "why": "The Census Bureau's approximation. It assumes independence, and ratios and proportions use different formulas.",
+      "source": "U.S. Census Bureau, ACS handbooks (statistical testing chapter)"
+    },
+    {
+      "id": "civ-04",
+      "kind": "fact",
+      "prompt": "Can you compare ACS 2015-2019 and 2017-2021 5-year estimates as a trend?",
+      "answer": "Not directly, because the periods overlap: 2017-2019 is in both. Compare non-overlapping periods, such as 2012-2016 vs 2017-2021.",
+      "source": "U.S. Census Bureau guidance on comparing ACS data"
+    },
+    {
+      "id": "civ-05",
+      "kind": "fact",
+      "prompt": "Typical population of a census tract, and of a block group?",
+      "answer": "Tract: about 4,000 (range 1,200-8,000). Block group: 600-3,000.",
+      "source": "U.S. Census Bureau, Geographic Areas Reference"
+    },
+    {
+      "id": "civ-06",
+      "kind": "concept",
+      "prompt": "Why can't you read a 2020-to-2021 change in national crime statistics at face value?",
+      "answer": "In January 2021 the FBI retired the Summary Reporting System (SRS) and accepted only NIBRS. Many agencies hadn't converted, so national coverage for 2021 dropped sharply. NIBRS also counts differently. It is incident-level, records up to 10 offenses per incident, and has no Hierarchy Rule, whereas SRS counted only the most serious offense in an incident.",
+      "points": [
+        "SRS retired January 2021; NIBRS-only after that",
+        "Coverage gap in 2021 national data",
+        "NIBRS: incident-level, up to 10 offenses, no Hierarchy Rule",
+        "Counting differences alone can move totals"
+      ],
+      "source": "FBI UCR program documentation"
+    },
+    {
+      "id": "civ-07",
+      "kind": "fact",
+      "prompt": "CAD vs RMS in police data: which holds calls for service, and which holds crime reports?",
+      "answer": "CAD (computer-aided dispatch) holds calls for service and dispatch timestamps. RMS (records management system) holds incident and offense reports.",
+      "why": "A call is not a crime, and many calls produce no report. Response-time questions go to CAD; crime counts come from RMS.",
+      "source": "General"
+    },
+    {
+      "id": "civ-08",
+      "kind": "fact",
+      "prompt": "What is Open311 GeoReport v2?",
+      "answer": "An open API standard for 311 systems. It lists service types, accepts service requests, and lets you query requests and their status in a common format.",
+      "source": "open311.org"
+    },
+    {
+      "id": "civ-09",
+      "kind": "fact",
+      "prompt": "NY assessment property class codes: what does the first digit mean for 2xx, 3xx and 4xx, and what are 210, 220 and 230?",
+      "answer": "2xx residential, 3xx vacant land, 4xx commercial. 210 = one-family year-round residence, 220 = two-family, 230 = three-family.",
+      "why": "Full first-digit set: 1 agricultural, 2 residential, 3 vacant land, 4 commercial, 5 recreation & entertainment, 6 community services, 7 industrial, 8 public services, 9 wild, forested and conservation lands and public parks.",
+      "source": "NYS Office of Real Property Tax Services, property type classification codes"
+    },
+    {
+      "id": "civ-10",
+      "kind": "judgment",
+      "prompt": "Someone proposes counting vacant houses by selecting property class 3xx. What's wrong, and what would you use instead?",
+      "answer": "3xx means vacant land, not a vacant building. An empty house is usually still classed 210, 220 or 230. Property class records the assessment use classification, not occupancy, and it lags reality. Use occupancy signals instead: USPS vacancy flags, water shutoffs or zero consumption, code enforcement and vacant-building registries, utility data. Combine several, validate against field checks, and define 'vacant' explicitly (unoccupied, abandoned, or distressed).",
+      "points": [
+        "3xx is vacant land; a vacant house stays residential class",
+        "Class reflects assessment use, not occupancy, and lags",
+        "Use occupancy signals (USPS, water, code enforcement, registries)",
+        "Triangulate sources and validate in the field",
+        "Define 'vacant' explicitly"
+      ],
+      "source": "Synthesis"
+    },
+    {
+      "id": "civ-11",
+      "kind": "fact",
+      "prompt": "In New York parcel data, what are SBL and SWIS, and why do you need both?",
+      "answer": "SBL (section-block-lot, the tax map number or 'print key') identifies a parcel within one municipality. SWIS is the 6-digit code for the municipality. SBLs repeat across municipalities, so a county-wide or statewide key needs SWIS plus SBL.",
+      "source": "NYS ORPS"
+    },
+    {
+      "id": "civ-12",
+      "kind": "concept",
+      "prompt": "Street-centerline (address-range interpolation) vs address-point geocoding: what errors does interpolation introduce?",
+      "answer": "Interpolation places an address proportionally along a segment's address range. Points land at the wrong place on the block, sometimes on the wrong side of the street or the wrong parcel, especially where lots are irregular or numbers are missing. Address points, or parcel centroids, put each address where it actually is. Fuzzy matching also trades accuracy for match rate.",
+      "points": [
+        "Proportional placement along a segment",
+        "Wrong side of street / wrong parcel errors",
+        "Address points or parcel centroids are more accurate",
+        "Match rate is not match accuracy"
+      ],
+      "source": "General GIS practice"
+    },
+    {
+      "id": "civ-13",
+      "kind": "fact",
+      "prompt": "Under New York's FOIL, how long does an agency have to respond to a records request, and what counts as a response?",
+      "answer": "Five business days from receipt. The agency must grant the request, deny it in writing, or acknowledge it in writing with a reasonable approximate date for a decision. If granting will take more than 20 business days from the acknowledgment, the agency must explain why in writing and give a date certain.",
+      "source": "NY Public Officers Law section 89(3)(a)"
+    },
+    {
+      "id": "civ-14",
+      "kind": "fact",
+      "prompt": "Which records retention schedule governs most NY local governments, cities included?",
+      "answer": "LGS-1, the Retention and Disposition Schedule for New York Local Government Records, issued by the NYS Archives. It replaced CO-2, MU-1 and the other older schedules.",
+      "source": "New York State Archives",
+      "verify": true
+    },
+    {
+      "id": "civ-15",
+      "kind": "fact",
+      "prompt": "Name the federal standard to cite when you define an address data model.",
+      "answer": "The FGDC United States Thoroughfare, Landmark, and Postal Address Data Standard (2011).",
+      "why": "It covers address elements, classes (thoroughfare, landmark, postal) and quality tests. NENA's NG9-1-1 GIS model and USPS Publication 28 cover adjacent needs.",
+      "source": "Federal Geographic Data Committee"
+    }
+  ]
+}

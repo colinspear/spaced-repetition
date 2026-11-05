@@ -1,0 +1,16 @@
+{
+  "name": "card-catalog",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Spaced repetition for a city data-management leader: FSRS-6 scheduler, domain decks, Claude-graded judgment cards, tailored explanations for persistent misses.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "build": "node build.mjs",
+    "check": "node build.mjs && node --test test/*.test.mjs",
+    "smoke": "node build.mjs && node tools/smoke.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
