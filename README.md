@@ -24,7 +24,7 @@ It is built on Patrick Collison's [suggestion](https://x.com/patrickc/status/211
 
 1. Type your answer. **Check my answer** sends it to Claude, which evaluates it against the reference answer and key points. Facts use the fast model, and concept and judgment cards use the default one.
 2. Claude's verdict becomes the rating. **Next** accepts it, and **Change rating** overrides it. Claude judges how well you know it; the FSRS scheduler turns that into when you see the card again. Claude has no model of your forgetting curve, so it doesn't pick the interval.
-3. **Go deeper** streams a longer explanation aimed at your answer, and you can ask follow-up questions. It's saved and reappears in the Catalog.
+3. **Go deeper** streams a longer explanation aimed at your answer, and you can ask follow-up questions. The card is saved to the **Study** tab. Review is for recall and Study is for understanding: nothing in Study changes the schedule, and the review card waits until you press Next. After studying, rate honestly, so a card you didn't really know comes back soon.
 4. A card you knew moves straight to days. A miss or a shaky answer comes back once, about 10 minutes later, for one corrective try.
 5. **Mastery** is how long you'd likely still recall a card: learning (days), familiar (up to 3 weeks), solid (up to 3 months), mastered (longer).
 6. **Report a problem** saves a note for the next "review my learning" session, which fixes or retires the card. **Stop showing** takes a card out of your reviews; bring it back from the Catalog.
@@ -100,6 +100,6 @@ python -m venv .venv && .venv/bin/pip install "fsrs[optimizer]==6.3.2"
 | `tools/optimize.py` | Held-out refit and optimal retention, producing a config patch |
 | `tools/smoke.mjs` | Browser smoke test |
 
-Artifact database layout: `cards/{id}` (memory state), `reviews/{YYYY-MM-DD}` (that day's review log), `explanations/{id}`, `deepdives/{id}`, `custom/{id}` (added or rewritten cards), `flags/{id}`, `config/scheduler`, `insights/latest`.
+Artifact database layout: `cards/{id}` (memory state), `reviews/{YYYY-MM-DD}` (that day's review log), `explanations/{id}`, `deepdives/{id}`, `study/{id}`, `custom/{id}` (added or rewritten cards), `flags/{id}`, `config/scheduler`, `insights/latest`.
 
 To update the published page from another Claude session, rebuild and publish `dist/card-catalog.html` to the artifact URL above.

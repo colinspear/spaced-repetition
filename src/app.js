@@ -21,8 +21,10 @@ const RATING = { 1: "Again", 2: "Hard", 3: "Good", 4: "Easy" };
 const RATING_UI = { 1: "Didn't know", 2: "Partly", 3: "Knew it", 4: "Easy" };
 const VERDICT = { 1: "Not yet", 2: "Partly right", 3: "Right", 4: "Spot on" };
 const FINE_POINTER = typeof matchMedia === "function" && matchMedia("(hover: hover) and (pointer: fine)").matches;
-const VIEWS = ["review", "catalog", "add", "patterns", "tuning", "guide"];
-const VIEW_LABEL = { review: "Review", catalog: "Catalog", add: "Add", patterns: "Misses", tuning: "Tuning", guide: "Guide" };
+const VIEWS = ["review", "study", "catalog", "add", "tuning", "guide"];
+const TABS = ["review", "study", "catalog", "add", "tuning"];
+const VIEW_LABEL = { review: "Review", study: "Study", catalog: "Catalog", add: "Add", tuning: "Tuning", guide: "Guide" };
+const DRAFT_KEY = "card-catalog:draft";
 
 const S = {
   mode: "loading", // loading | db | local | unreachable
@@ -30,7 +32,7 @@ const S = {
   config: mergeConfig(null), sched: null,
   cards: [], byId: new Map(),
   mem: new Map(), logs: new Map(), expl: new Map(), custom: new Map(), flags: [], insights: null,
-  deep: new Map(), streamText: new Map(), pendingQ: new Map(),
+  deep: new Map(), streamText: new Map(), pendingQ: new Map(), study: new Map(), studyOpen: null,
   view: "review", session: null, unsaved: false,
   cat: { deck: null, q: "", open: null, flagFor: null },
   add: { note: "", deck: "inb", drafts: [], busy: false, err: "", manual: { kind: "fact", prompt: "", answer: "", points: "" } },
@@ -104,7 +106,7 @@ function saveLocalSoon() {
   localTimer = setTimeout(() => {
     try {
       localStorage.setItem(LS_KEY, JSON.stringify({
-        mem: [...S.mem], logs: [...S.logs], expl: [...S.expl], custom: [...S.custom], flags: S.flags, config: S.config, insights: S.insights, deep: [...S.deep],
+        mem: [...S.mem], logs: [...S.logs], expl: [...S.expl], custom: [...S.custom], flags: S.flags, config: S.config, insights: S.insights, deep: [...S.deep], study: [...S.study],
       }));
     } catch { S.unsaved = true; renderStatus(); }
   }, 250);
@@ -117,12 +119,13 @@ function loadLocal() {
     S.mem = new Map(d.mem || []); S.logs = new Map(d.logs || []); S.expl = new Map(d.expl || []);
     S.custom = new Map(d.custom || []); S.flags = d.flags || []; S.config = mergeConfig(d.config); S.insights = d.insights || null;
     S.deep = new Map(d.deep || []);
+    S.study = new Map(d.study || []);
   } catch { /* private window or blocked storage: start empty */ }
 }
 async function loadDb() {
   const col = async (name) => (await withTimeout(S.db.collection(name).get())).docs;
-  const [cards, reviews, expl, custom, flags, deep, cfg, ins] = await Promise.all([
-    col("cards"), col("reviews"), col("explanations"), col("custom"), col("flags"), col("deepdives"),
+  const [cards, reviews, expl, custom, flags, deep, study, cfg, ins] = await Promise.all([
+    col("cards"), col("reviews"), col("explanations"), col("custom"), col("flags"), col("deepdives"), col("study"),
     withTimeout(S.db.doc("config/scheduler").get()), withTimeout(S.db.doc("insights/latest").get()),
   ]);
   S.mem = new Map(cards.map((d) => [d.id, clone(d.data())]));
@@ -131,6 +134,7 @@ async function loadDb() {
   S.custom = new Map(custom.map((d) => [d.id, clone(d.data())]));
   S.flags = flags.map((d) => ({ id: d.id, ...clone(d.data()) }));
   S.deep = new Map(deep.map((d) => [d.id, clone(d.data())]));
+  S.study = new Map(study.map((d) => [d.id, clone(d.data())]));
   S.config = mergeConfig(cfg.exists ? clone(cfg.data()) : null);
   S.insights = ins.exists ? clone(ins.data()) : null;
 }
@@ -305,7 +309,22 @@ async function goDeeper(id) {
   const rec = { prompt, text, followups: [], at: Date.now() };
   S.deep.set(id, rec);
   persist(`deepdives/${id}`, rec);
+  setStudy(id, true, false);
   render();
+}
+/** Study list: cards saved for understanding. Removing hides a card even if it has a deep dive. */
+function setStudy(id, on, notify = true) {
+  const prev = S.study.get(id);
+  if (on && prev && !prev.removed) return;
+  const rec = { at: Date.now(), removed: !on };
+  S.study.set(id, rec);
+  persist(`study/${id}`, rec);
+  if (notify) toast(on ? "Saved to Study." : "Removed from Study.");
+}
+function studyIds() {
+  const ids = new Set([...S.deep.keys(), ...[...S.study].filter(([, r]) => !r.removed).map(([id]) => id)]);
+  const when = (id) => Math.max(S.study.get(id)?.at || 0, S.deep.get(id)?.at || 0, ...(S.deep.get(id)?.followups || []).map((f) => f.at || 0));
+  return [...ids].filter((id) => S.byId.has(id) && !S.study.get(id)?.removed).sort((a, b) => when(b) - when(a));
 }
 async function followUp(id, q) {
   const rec = S.deep.get(id);
@@ -361,7 +380,35 @@ function advance(doRender = true) {
   const sess = S.session;
   const nx = nextCard({ queue: sess.queue, cards: S.cards, mem: S.mem, now: Date.now(), lastId: sess.lastId });
   Object.assign(sess, { current: nx?.id || null, from: nx?.from, phase: "front", typed: "", grade: null, override: false, focusBox: FINE_POINTER, t0: performance.now(), waitMs: 0, hiddenMs: 0, pauseAt: null });
+  saveDraft();
   if (doRender) render();
+}
+// The card in progress survives reloads (phones reload backgrounded pages; publishing an
+// update reloads open views). Per-viewer convenience, so browser storage, not the db.
+let draftTimer;
+function saveDraft(soon = false) {
+  const write = () => {
+    try {
+      const s = S.session;
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ id: s?.current || null, phase: s?.phase, typed: s?.typed || "", grade: s?.grade || null, override: !!s?.override, studyOpen: S.studyOpen, day: today(), at: Date.now() }));
+    } catch { /* storage blocked: nothing to restore later */ }
+  };
+  clearTimeout(draftTimer);
+  if (soon) draftTimer = setTimeout(write, 300);
+  else write();
+}
+function readDraft() {
+  try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); } catch { return null; }
+}
+/** Takes the draft read before startSession(), which saves a fresh draft of its own. */
+function restoreDraft(d) {
+  if (!d || d.day !== today()) return;
+  S.studyOpen = d.studyOpen && S.byId.has(d.studyOpen) ? d.studyOpen : null;
+  const c = d.id && S.byId.get(d.id);
+  if (!c || S.mem.get(c.id)?.suspended) return;
+  if ((S.logs.get(today()) || []).some((l) => l.c === c.id && l.t >= d.at)) return; // rated since
+  Object.assign(S.session, { current: c.id, from: "restored", phase: d.phase === "back" ? "back" : "front", typed: d.typed || "", grade: d.grade || null, override: !!d.override, focusBox: false, t0: performance.now(), waitMs: 0, hiddenMs: 0, pauseAt: null });
+  saveDraft();
 }
 /** Cards, not reviews: each card today is in exactly one bucket. */
 function progress() {
@@ -371,7 +418,7 @@ function progress() {
   const toGo = sess ? sess.queue.filter((id) => !back.has(id) && !done.has(id)).length : 0;
   return { done: done.size, toGo, back: back.size, total: done.size + toGo + back.size };
 }
-function reveal() { if (S.session.current) { S.session.phase = "back"; render(); } }
+function reveal() { if (S.session.current) { S.session.phase = "back"; saveDraft(); render(); } }
 async function grade() {
   const sess = S.session, c = S.byId.get(sess.current);
   if (!c || !sess.typed.trim() || !claudeReady() || S.busy.has(`grade:${c.id}`)) return;
@@ -384,6 +431,7 @@ async function grade() {
       wrong: str(g.wrong, 300), feedback: str(g.feedback, 500), rating: [1, 2, 3, 4].includes(Number(g.rating)) ? Number(g.rating) : null,
     };
     sess.phase = "back";
+    saveDraft();
   }
   render();
 }
@@ -423,6 +471,7 @@ function undoLast() {
   for (let i = items.length - 1; i >= 0; i--) if (items[i].c === u.id) { items.splice(i, 1); break; }
   persist(`reviews/${u.key}`, { day: u.key, items });
   Object.assign(sess, { queue: u.queue, reviewed: u.reviewed, passed: u.passed, undo: null, current: u.id, phase: "back", typed: u.typed, grade: u.grade, override: false, t0: performance.now(), waitMs: 0, hiddenMs: 0, pauseAt: null });
+  saveDraft();
   render();
 }
 async function explain(id) {
@@ -493,15 +542,15 @@ function render() {
     return;
   }
   const v = S.view;
-  root.innerHTML = `${nav()}<div id="status-slot">${statusLine()}</div><main id="view">${{ review: viewReview, catalog: viewCatalog, add: viewAdd, patterns: viewPatterns, tuning: viewTuning, guide: viewGuide }[v]()}</main>`;
+  root.innerHTML = `${nav()}<div id="status-slot">${statusLine()}</div><main id="view">${{ review: viewReview, study: viewStudy, catalog: viewCatalog, add: viewAdd, tuning: viewTuning, guide: viewGuide }[v]()}</main>`;
   if (v === "guide") drawCurve();
   const ta = document.getElementById("answer-box");
   if (ta && S.session?.focusBox) { ta.focus(); S.session.focusBox = false; }
 }
 function renderStatus() { const el = document.getElementById("status-slot"); if (el) el.innerHTML = statusLine(); }
 function nav() {
-  return `<header class="top"><div class="brand"><span class="brand-mark" aria-hidden="true"></span><span>Card Catalog</span></div>
-<nav class="tabs" aria-label="Views">${VIEWS.map((v) => `<a href="#${v}" class="tab${S.view === v ? " on" : ""}"${S.view === v ? ' aria-current="page"' : ""}>${VIEW_LABEL[v]}</a>`).join("")}</nav></header>`;
+  return `<header class="top"><div class="brand"><span class="brand-mark" aria-hidden="true"></span><span>Card Catalog</span><a href="#guide" class="guide-link${S.view === "guide" ? " on" : ""}">Guide</a></div>
+<nav class="tabs" aria-label="Views">${TABS.map((v) => `<a href="#${v}" class="tab${S.view === v ? " on" : ""}"${S.view === v ? ' aria-current="page"' : ""}>${VIEW_LABEL[v]}${v === "study" && studyIds().length ? ` <span class="count">${studyIds().length}</span>` : ""}</a>`).join("")}</nav></header>`;
 }
 function statusLine() {
   const store = S.mode === "db" ? "Saved to your account" : "This browser only";
@@ -596,6 +645,7 @@ function cardActions(c, m, x, missed, busyX) {
   const can = claudeReady();
   return `<div class="row small">
 ${can && !S.deep.has(c.id) && !S.busy.has("deep:" + c.id) ? `<button type="button" class="btn" data-act="deep" data-id="${c.id}">Go deeper</button>` : ""}
+${S.view === "review" ? (studyIds().includes(c.id) ? `<button type="button" class="btn ghost" data-act="study-open" data-id="${c.id}">Open in Study</button>` : `<button type="button" class="btn ghost" data-act="study-save" data-id="${c.id}" title="Save it to the Study tab to work through later. It doesn't change the schedule.">Study later</button>`) : ""}
 ${can && (missed || x) ? `<button type="button" class="btn ${isPersistentMiss(m) && !x ? "primary" : "ghost"}" data-act="explain" data-id="${c.id}" ${busyX ? "disabled" : ""}>${busyX ? "Claude is diagnosing…" : x ? "Re-diagnose my misses" : `Missed ${m.agains}×. Why do I keep missing this?`}</button>` : ""}
 <button type="button" class="btn ghost" data-act="flag-open" data-id="${c.id}" title="Something about the card is wrong, unclear or not useful. Claude fixes reported cards when you ask it to review your learning.">Report a problem</button>
 <button type="button" class="btn ghost" data-act="${m?.suspended ? "unsuspend" : "suspend"}" data-id="${c.id}" title="${m?.suspended ? "Put this card back into your reviews." : "Take this card out of your reviews. You can bring it back from the Catalog."}">${m?.suspended ? "Show again" : "Stop showing"}</button>
@@ -621,7 +671,11 @@ function deepBlock(c) {
   const thinking = '<p class="muted">Thinking…</p>';
   const body = rec ? md(rec.text) : md(S.streamText.get(`deep:${id}`)) || thinking;
   const fu = (rec?.followups || []).map((f) => `<div class="fq"><p class="q">${esc(f.q)}</p><div class="md">${md(f.a)}</div></div>`).join("");
-  return `<div class="deep"><span class="lbl">Deeper dive</span><div class="md" id="deep-${id}">${body}</div>${fu}
+  const sess = S.session, inReview = S.view === "review" && sess?.current === id;
+  const note = inReview && rec
+    ? `<p class="deep-note">Saved to <a href="#study" data-act="study-open" data-id="${id}">Study</a>, where you can keep going anytime. This card waits until you press Next, and time spent here doesn't count as review time.${sess.grade?.rating >= 3 && !sess.override ? " If this showed you didn't really get it, press <b>Change rating</b> so the card comes back sooner." : ""}</p>`
+    : "";
+  return `<div class="deep"><span class="lbl">Deeper dive</span><div class="md" id="deep-${id}">${body}</div>${fu}${note}
 ${fbusy ? `<div class="fq"><p class="q">${esc(S.pendingQ.get(id) || "")}</p><div class="md" id="follow-${id}">${md(S.streamText.get(`follow:${id}`)) || thinking}</div></div>` : ""}
 ${rec && claudeReady() ? `<form class="followup" data-form="followup" data-id="${id}"><label class="sr" for="fq-${id}">Ask a follow-up question</label><input id="fq-${id}" name="q" type="text" placeholder="Ask a follow-up question" autocomplete="off"><button class="btn" type="submit" ${fbusy ? "disabled" : ""}>Ask</button></form>` : ""}
 ${err ? `<p class="err">${esc(err)}</p>` : ""}</div>`;
@@ -651,7 +705,7 @@ function doneScreen() {
 ${backlog ? `<p>${backlog} overdue cards are waiting beyond today's cap of ${S.config.reviewsPerDay}. They lose little by waiting: the ones decaying fastest are shown first each day. New cards stay paused until the backlog clears.</p>` : ""}
 <p class="mono strip">${f.map((n, i) => `<span><small>${i === 0 ? "today" : i === 1 ? "tmrw" : "+" + i}</small>${n}</span>`).join("")}</p>
 <p class="muted">${masterySummary(S.cards)}. ${left ? `${S.config.newPerDay} new cards are introduced per day.` : ""}</p>
-<div class="row"><a class="btn" href="#add">Turn a note into cards</a><a class="btn ghost" href="#patterns">See what you keep missing</a><a class="btn ghost" href="#guide">How it works</a></div></section>`;
+<div class="row"><a class="btn" href="#add">Turn a note into cards</a><a class="btn ghost" href="#study">Study</a><a class="btn ghost" href="#guide">How it works</a></div></section>`;
 }
 
 function masterySummary(cards) {
@@ -724,7 +778,31 @@ function draftEditor(d, i) {
 <div class="row small"><button class="btn primary" type="submit">Add to ${esc(DECK_META.get(S.add.deck)?.code || "INB")}</button>${i !== "m" ? `<button class="btn ghost" type="button" data-act="discard" data-i="${i}">Discard</button>` : ""}</div></form>`;
 }
 
-function viewPatterns() {
+function viewStudy() {
+  const ids = studyIds();
+  const open = S.studyOpen && S.byId.get(S.studyOpen);
+  const back = S.session?.current && S.byId.get(S.session.current);
+  return `<section class="panel"><h2>Study</h2>
+<p class="muted">Review is for recalling; Study is for understanding. Take as long as you like here. Nothing in Study changes when cards come back.${back ? ` Your review is paused on <a href="#review">${esc(callNumber(back))}</a>.` : ""}</p>
+${open ? studyDetail(open) : ""}
+${ids.length ? `<ul class="cardlist">${ids.map((id) => { const c = S.byId.get(id), d = S.deep.get(id); return `<li class="crow${S.studyOpen === id ? " open" : ""}"><button type="button" class="crow-head" data-act="study-open" data-id="${id}"><span class="callno">${esc(callNumber(c))}</span><span class="cprompt">${esc(clip(c.prompt, 110))}</span><span class="cmeta">${d ? `deep dive${d.followups?.length ? ` · ${d.followups.length} follow-up${d.followups.length > 1 ? "s" : ""}` : ""}` : "saved, not explored yet"}</span></button></li>`; }).join("")}</ul>`
+    : `<p class="muted">Nothing saved yet. On any card in Review, press <b>Go deeper</b> or <b>Study later</b> and it lands here.</p>`}
+</section>
+${missesPanels()}`;
+}
+function studyDetail(c) {
+  const can = claudeReady(), m = S.mem.get(c.id), x = S.expl.get(c.id);
+  return `<article class="study-detail">${cardHead(c)}<p class="prompt sm">${fmt(c.prompt)}</p>
+<div class="answer"><span class="lbl">Answer</span><p>${fmt(c.answer)}</p>${c.points?.length ? `<ol class="points">${c.points.map((p) => `<li><span>${fmt(p)}</span></li>`).join("")}</ol>` : ""}${c.why ? `<p class="why">${fmt(c.why)}</p>` : ""}</div>
+${deepBlock(c)}${x ? explanationBlock(c, x) : ""}
+<p class="source">Source: ${esc(c.source || "—")}</p>
+<div class="row small">${can && !S.deep.has(c.id) && !S.busy.has("deep:" + c.id) ? `<button type="button" class="btn primary" data-act="deep" data-id="${c.id}">Go deeper</button>` : ""}
+${can && (m?.agains || 0) >= 1 ? `<button type="button" class="btn ghost" data-act="explain" data-id="${c.id}" ${S.busy.has("explain:" + c.id) ? "disabled" : ""}>${S.busy.has("explain:" + c.id) ? "Claude is diagnosing…" : x ? "Re-diagnose my misses" : "Why do I keep missing this?"}</button>` : ""}
+<button type="button" class="btn ghost" data-act="study-remove" data-id="${c.id}">Remove from Study</button>
+<button type="button" class="btn ghost" data-act="study-close">Close</button></div>
+${S.errs.get("explain:" + c.id) ? `<p class="err">${esc(S.errs.get("explain:" + c.id))}</p>` : ""}</article>`;
+}
+function missesPanels() {
   const missed = S.cards.map((c) => ({ c, m: S.mem.get(c.id) })).filter(({ m }) => m?.agains > 0).sort((a, b) => b.m.agains - a.m.agains);
   const ins = S.insights;
   const busy = S.busy.has("patterns");
@@ -732,8 +810,8 @@ function viewPatterns() {
 ${ins ? insightsBlock(ins) : `<p class="muted">No analysis yet. Once a few cards have misses, ask Claude to look for patterns across them.</p>`}
 ${claudeReady() ? `<div class="row"><button type="button" class="btn primary" data-act="patterns" ${busy || missed.length < 3 ? "disabled" : ""}>${busy ? "Claude is reading your history…" : "Analyze my misses"}</button>${missed.length < 3 ? `<span class="muted">Needs misses on at least 3 cards (${missed.length} so far).</span>` : ""}</div>` : ""}
 ${S.errs.get("patterns") ? `<p class="err">${esc(S.errs.get("patterns"))}</p>` : ""}</section>
-<section class="panel"><h2>Persistent misses</h2>${missed.length ? `<ul class="cardlist">${missed.slice(0, 30).map(({ c, m }) => `<li class="crow"><button type="button" class="crow-head" data-act="goto" data-id="${c.id}"><span class="callno">${esc(callNumber(c))}</span><span class="cprompt">${esc(clip(c.prompt, 110))}</span><span class="cmeta mono">${m.agains}× missed${isLeech(m) ? " · leech" : ""}${S.expl.get(c.id) ? " · explained" : ""}</span></button></li>`).join("")}</ul>` : `<p class="muted">None yet.</p>`}
-<p class="muted">A card missed twice gets an "Explain it to me" button aimed at your actual answers. A card with four lapses is a leech: it usually needs rewriting or splitting, not more reps.</p></section>
+<section class="panel"><h2>Persistent misses</h2>${missed.length ? `<ul class="cardlist">${missed.slice(0, 30).map(({ c, m }) => `<li class="crow"><button type="button" class="crow-head" data-act="study-open" data-id="${c.id}"><span class="callno">${esc(callNumber(c))}</span><span class="cprompt">${esc(clip(c.prompt, 110))}</span><span class="cmeta mono">${m.agains}× missed${isLeech(m) ? " · leech" : ""}${S.expl.get(c.id) ? " · explained" : ""}</span></button></li>`).join("")}</ul>` : `<p class="muted">None yet.</p>`}
+<p class="muted">Open a missed card to study it. "Why do I keep missing this?" looks at all your attempts on it. A card with four lapses is a leech: it usually needs rewriting or splitting, not more reps.</p></section>
 <section class="panel">${flagForm(null)}<p class="muted">${S.flags.filter((f) => !f.resolved).length} open flags and topic requests. Claude reads them when you ask it to review your learning.</p></section>`;
 }
 function insightsBlock(ins) {
@@ -821,6 +899,10 @@ ${revs.map((r, i) => `<tr><td>${i + 1}</td><td class="num">${r.day}</td><td clas
 </tbody></table></div>
 <p class="muted">"Memory now lasts" is stability: days until recall is predicted to fall to 90%. Under each graded card, <b>Why this timing?</b> shows the same numbers for that card.</p>
 
+<h3>Reviewing and studying</h3>
+<p>Review is for recalling what you already understand; that's what the scheduler optimizes. When a card shows you don't really understand something, switch to studying. <b>Go deeper</b> starts an explanation aimed at your answer, and the card is saved to the <b>Study</b> tab, where you can keep asking questions for as long as you like. Nothing in Study changes the schedule. The review card waits until you press <b>Next</b>, even if you leave for Study, and the time doesn't count as review time.</p>
+<p>After studying, rate honestly. If you didn't really know it, press <b>Change rating</b> and pick <b>Partly</b> or <b>Didn't know</b>, so the card comes back soon and tests the understanding you just built.</p>
+
 <h3>What Claude's verdict does</h3>
 <div class="scroll"><table><thead><tr><th>Verdict</th><th>Counts as</th><th>What happens</th></tr></thead><tbody>
 <tr><td>Not yet</td><td>Didn't know</td><td>Stability drops. The card comes back in 10 minutes for one more try.</td></tr>
@@ -851,7 +933,8 @@ ${revs.map((r, i) => `<tr><td>${i + 1}</td><td class="num">${r.day}</td><td clas
 
 <h3>Buttons on a card</h3>
 <dl>
-<dt>Go deeper</dt><dd>A longer explanation aimed at your answer. Ask follow-up questions under it. It's saved with the card.</dd>
+<dt>Go deeper</dt><dd>A longer explanation aimed at your answer. Ask follow-up questions under it. It's saved to the Study tab.</dd>
+<dt>Study later</dt><dd>Saves the card to the Study tab without exploring it now.</dd>
 <dt>Why do I keep missing this?</dt><dd>Appears after a miss. Claude looks at all your attempts on the card and explains the specific confusion.</dd>
 <dt>Report a problem</dt><dd>The card is wrong, unclear or not useful. Claude fixes or retires reported cards when you ask it to review your learning.</dd>
 <dt>Stop showing</dt><dd>Takes the card out of your reviews. Bring it back from the Catalog.</dd>
@@ -863,8 +946,9 @@ ${revs.map((r, i) => `<tr><td>${i + 1}</td><td class="num">${r.day}</td><td clas
 <dl>
 <dt>Catalog</dt><dd>Browse every card by deck, with mastery, saved deep dives and explanations.</dd>
 <dt>Add</dt><dd>Paste a note and Claude drafts cards from it, keeping the general principle. Or write a card yourself.</dd>
-<dt>Misses</dt><dd>Cards you keep missing, and a cross-card analysis of what's behind them.</dd>
+<dt>Study</dt><dd>Cards you went deeper on or saved, with their explanations and follow-ups. Also the cards you keep missing, and a cross-card analysis of what's behind them.</dd>
 <dt>Tuning</dt><dd>Daily limits, and a check of how well the scheduler's predictions match your actual answers.</dd>
+<dt>Guide</dt><dd>This page. The link sits next to the app name.</dd>
 </dl>
 
 <h3>How it adapts to you</h3>
@@ -958,7 +1042,8 @@ const SESSION_PROMPT = `Review my learning in the Card Catalog artifact. Read it
 
 // ---------- events ----------
 function route() {
-  const h = (location.hash || "").replace("#", "");
+  let h = (location.hash || "").replace("#", "");
+  if (h === "patterns") h = "study";
   S.view = VIEWS.includes(h) ? h : "review";
   if (S.view === "review" && S.session && !S.session.current) startSession();
   render();
@@ -970,7 +1055,11 @@ document.addEventListener("click", async (ev) => {
   switch (act) {
     case "reveal": return reveal();
     case "deep": return goDeeper(id);
-    case "override": S.session.override = true; return render();
+    case "study-save": setStudy(id, true); saveDraft(); return render();
+    case "study-open": ev.preventDefault(); S.studyOpen = id; saveDraft(); if (location.hash !== "#study") location.hash = "study"; else render(); return;
+    case "study-close": S.studyOpen = null; saveDraft(); return render();
+    case "study-remove": setStudy(id, false); if (S.studyOpen === id) S.studyOpen = null; return render();
+    case "override": S.session.override = true; saveDraft(); return render();
     case "grade": return grade();
     case "rate": return rate(Number(el.dataset.r));
     case "explain": return explain(id);
@@ -1023,6 +1112,7 @@ document.addEventListener("input", (ev) => {
   const t = ev.target;
   if (t.id === "answer-box") {
     S.session.typed = t.value;
+    saveDraft(true);
     const b = document.querySelector('[data-act="grade"]');
     if (b && !S.busy.has(`grade:${S.session.current}`)) b.disabled = !t.value.trim();
   }
@@ -1124,7 +1214,9 @@ async function boot() {
   }
   S.sched = schedulerFor(S.config);
   assembleCards();
+  const draft = readDraft();
   startSession();
+  restoreDraft(draft);
   route();
 }
 boot();

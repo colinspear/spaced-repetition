@@ -108,6 +108,19 @@ await phone.click('form[data-form="followup"] button[type="submit"]');
 await phone.waitForSelector(".fq .q");
 assert.equal(await phone.evaluate(() => window.__mock.docs.get("deepdives/met-01").followups.length), 1);
 if (shotsDir) await phone.screenshot({ path: `${shotsDir}/phone-graded.png`, fullPage: true });
+// Study: open the card there, keep asking, come back to the same review card
+assert.match(await phone.textContent(".deep-note"), /waits until you press Next/);
+await phone.click('.row [data-act="study-open"]');
+await phone.waitForSelector(".study-detail .deep");
+assert.match(await phone.textContent(".panel"), /Your review is paused on/);
+await phone.fill('.study-detail input[name="q"]', "Give me an example");
+await phone.click('.study-detail form[data-form="followup"] button[type="submit"]');
+await phone.waitForFunction(() => window.__mock.docs.get("deepdives/met-01").followups.length === 2);
+if (shotsDir) await phone.screenshot({ path: `${shotsDir}/study-phone.png`, fullPage: true });
+assert.equal(await phone.evaluate(() => window.__mock.docs.get("study/met-01").removed), false);
+await phone.evaluate(() => (location.hash = "review"));
+await phone.waitForSelector(".rate-btn.next");
+assert.equal((await phone.textContent(".callno")).trim(), "MET·01", "review card waited");
 await phone.click(".rate-btn.next");
 assert.match(await phone.textContent(".status"), /1 done · \d+ to go · 1 coming back/);
 await phone.click('[data-act="reveal"]');
@@ -153,7 +166,8 @@ const box = await guide.locator("#curve svg").boundingBox();
 await guide.mouse.move(box.x + box.width * 0.5, box.y + 60);
 await guide.waitForSelector(".curve-tip:not([hidden])");
 assert.match(await guide.textContent(".curve-tip"), /Day \d+[\s\S]*With reviews[\s\S]*Without reviews/);
-assert.equal(await guide.locator(".tab").count(), 6);
+assert.equal(await guide.locator(".tab").count(), 5);
+assert.equal(await guide.locator(".guide-link.on").count(), 1);
 if (shotsDir) await guide.screenshot({ path: `${shotsDir}/guide-phone.png`, fullPage: true });
 const guideDark = await newPage({ viewport: { width: 1100, height: 900 }, colorScheme: "dark", deviceScaleFactor: 1 });
 await guideDark.evaluate(() => (location.hash = "guide"));
@@ -162,6 +176,20 @@ await guideDark.locator("#curve").scrollIntoViewIfNeeded();
 const b2 = await guideDark.locator("#curve svg").boundingBox();
 await guideDark.mouse.move(b2.x + b2.width * 0.3, b2.y + 80);
 if (shotsDir) await guideDark.screenshot({ path: `${shotsDir}/guide-dark.png` });
+
+// Reload keeps the card in progress, including a half-typed answer
+const rl = await newPage({ viewport: { width: 390, height: 800 } });
+const rlCard = (await rl.textContent(".callno")).trim();
+await rl.fill("#answer-box", "half-typed thought");
+await rl.waitForTimeout(500);
+await rl.reload();
+await rl.waitForSelector("#answer-box");
+assert.equal((await rl.textContent(".callno")).trim(), rlCard);
+assert.equal(await rl.inputValue("#answer-box"), "half-typed thought");
+// Study later from the back of a card
+await rl.click('[data-act="reveal"]');
+await rl.click('[data-act="study-save"]');
+assert.match(await rl.textContent('.tab[href="#study"]'), /Study 1/);
 
 // 3. Explain flow for a missed card (seeded memory with misses).
 const ex = await newPage({ viewport: { width: 800, height: 900 } }, true, () => {

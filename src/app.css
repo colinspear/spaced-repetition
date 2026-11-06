@@ -293,3 +293,11 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var
 .why-timing summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: 13.5px; }
 .why-timing p { margin-top: 6px; font-size: 14px; color: var(--ink-2); max-width: 65ch; }
 @media (max-width: 420px) { .tab { padding: 5px 7px; font-size: 12.5px; } }
+
+/* study */
+.brand .guide-link { margin-left: 6px; font-size: 13px; font-weight: 600; color: var(--accent); text-decoration: none; padding: 2px 6px; border-radius: 2px; }
+.brand .guide-link.on { background: var(--easy-bg); }
+.tab .count { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+.deep-note { font-size: 13px; color: var(--ink-2); padding-top: 8px; border-top: 1px dashed var(--line); max-width: 65ch; }
+.study-detail { display: grid; gap: 12px; padding: 14px; background: var(--stock-2); border-radius: 3px; }
+.study-detail .card-head { padding: 0 0 8px; }
