@@ -1,0 +1,95 @@
+{
+  "deck": "lrn",
+  "code": "LRN",
+  "title": "Learning & capability building",
+  "blurb": "How adults build skill, why training usually doesn't change behavior, and how to design it so it does.",
+  "cards": [
+    {
+      "id": "lrn-01",
+      "kind": "fact",
+      "prompt": "Kirkpatrick's four levels of training evaluation, in order.",
+      "answer": "1. Reaction. 2. Learning. 3. Behavior. 4. Results.",
+      "why": "Most programs stop at level 1 (did they like it?). Level 3 (are they doing it on the job?) is where skills training succeeds or fails.",
+      "source": "Kirkpatrick & Kirkpatrick, Four Levels of Training Evaluation (2016)"
+    },
+    {
+      "id": "lrn-02",
+      "kind": "concept",
+      "prompt": "What are 'desirable difficulties', and what trap do they create when you evaluate training?",
+      "answer": "Spacing, interleaving, retrieval practice and generation make practice feel harder and look worse in the moment, but they improve long-term retention and transfer. The trap is that performance during training is not learning, so smooth, easy sessions get good reviews and teach less.",
+      "points": [
+        "Spacing, interleaving, retrieval, generation",
+        "Feel harder and look worse in the moment",
+        "Better long-term retention and transfer",
+        "In-session performance and satisfaction are poor proxies for learning"
+      ],
+      "source": "Bjork & Bjork (2011); Soderstrom & Bjork (2015)"
+    },
+    {
+      "id": "lrn-03",
+      "kind": "fact",
+      "prompt": "The Dreyfus model's five stages of skill acquisition, and what novices need compared with experts.",
+      "answer": "Novice, advanced beginner, competent, proficient, expert. Novices need explicit, context-free rules and checklists. Experts act from intuition built on many cases, so rules slow them down. Teach each stage differently.",
+      "source": "Dreyfus & Dreyfus (1980); Mind over Machine (1986)"
+    },
+    {
+      "id": "lrn-04",
+      "kind": "concept",
+      "prompt": "The worked-example effect: what is it, and when does it reverse?",
+      "answer": "For novices, studying worked examples teaches more than solving the same problems unaided, because problem solving uses up working memory on search rather than on learning the structure. As learners gain expertise the benefit fades and can reverse (the expertise reversal effect), so fade the examples into independent practice.",
+      "points": [
+        "Novices learn more from studying worked examples",
+        "Problem solving overloads working memory with search",
+        "Expertise reversal: the benefit fades with skill",
+        "Fade from examples to independent practice"
+      ],
+      "source": "Sweller, cognitive load theory; Kalyuga et al. (2003)"
+    },
+    {
+      "id": "lrn-05",
+      "kind": "concept",
+      "prompt": "What is the curse of knowledge, and what is the classic demonstration?",
+      "answer": "Once you know something, it is hard to imagine not knowing it, so experts skip steps and overestimate how clear they are. In Elizabeth Newton's tapping study, people who tapped out well-known songs predicted listeners would name about half of them. Listeners named about 1 in 40. Fix it by testing explanations on real novices and leading with concrete examples.",
+      "points": [
+        "Experts can't simulate not knowing",
+        "Tappers predicted ~50%; listeners got ~2.5%",
+        "Explanations skip steps",
+        "Test on novices; lead with concrete examples"
+      ],
+      "source": "Elizabeth Newton, Stanford dissertation (1990); Heath & Heath, Made to Stick (2007)"
+    },
+    {
+      "id": "lrn-06",
+      "kind": "concept",
+      "prompt": "What is the illusion of explanatory depth, and how do you use it when interviewing people about a process?",
+      "answer": "People believe they understand how something works in far more detail than they do. Asking them to explain the mechanism step by step exposes the gaps. Ask 'Walk me through how this number gets produced, from intake to report' rather than 'Do you understand the process?'",
+      "points": [
+        "Overestimated understanding of mechanisms",
+        "Step-by-step explanation reveals gaps",
+        "Interview with walk-throughs, not yes/no comprehension checks"
+      ],
+      "source": "Rozenblit & Keil, The misunderstood limits of folk science (2002)"
+    },
+    {
+      "id": "lrn-07",
+      "kind": "fact",
+      "prompt": "Wenger's three structural elements of a community of practice.",
+      "answer": "Domain (the shared area of concern), community (the people and their relationships), and practice (the shared repertoire of tools, methods and stories).",
+      "source": "Wenger, McDermott & Snyder, Cultivating Communities of Practice (2002)"
+    },
+    {
+      "id": "lrn-08",
+      "kind": "judgment",
+      "prompt": "Design a tools training that changes what people do on the job, not just what they know.",
+      "answer": "Build it on their real tasks and their own data. Run short sessions spaced over weeks, with participants building and retrieving rather than watching demos. Interleave skills, and give an on-the-job assignment between sessions. Back it with office hours and a network of champions. Measure behavior (Kirkpatrick level 3): are they using the shared, approved assets, and is their work being reused?",
+      "points": [
+        "Real tasks and real data",
+        "Spaced short sessions; building and retrieval over demos",
+        "On-the-job assignments between sessions",
+        "Office hours and champions for follow-through",
+        "Measure level 3 behavior"
+      ],
+      "source": "Synthesis: Kirkpatrick; Bjork"
+    }
+  ]
+}

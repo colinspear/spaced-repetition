@@ -32,3 +32,16 @@ test("deck files are well formed", () => {
   }
   assert.ok(seen.size >= 70, `${seen.size} cards`);
 });
+
+// Cards teach general principles. Topics come from the learner's work; content never does.
+const LOCAL = /\b(Rochester|Monroe|New York|NYS|FOIL|SWIS|SBL|LGS-1|311|city council|council member|municipal|DataGalaxy|Power BI|SSIS|SQL Server|DAX|T-SQL)\b/i;
+test("cards stay organization- and place-neutral", () => {
+  for (const [file, d] of decks) {
+    for (const c of d.cards) {
+      const text = [c.prompt, c.answer, c.why, ...(c.points || [])].filter(Boolean).join(" ");
+      const m = text.match(LOCAL);
+      assert.equal(m, null, `${file}:${c.id} mentions "${m?.[0]}"`);
+    }
+    assert.equal(`${d.title} ${d.blurb}`.match(LOCAL), null, `${file}: deck title/blurb`);
+  }
+});

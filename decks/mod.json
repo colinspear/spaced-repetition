@@ -1,21 +1,107 @@
 {
   "deck": "mod",
   "code": "MOD",
-  "title": "Dimensional modeling & Power BI",
-  "blurb": "Grain, fact types, conformed dimensions and the DAX semantics behind a shared semantic model.",
+  "title": "Data modeling & databases",
+  "blurb": "Normalization, keys, NULLs, indexes and loads on the database side; grain, facts and dimensions on the analytical side.",
   "cards": [
     {
       "id": "mod-01",
+      "kind": "fact",
+      "prompt": "The one-line test for third normal form.",
+      "answer": "Every non-key attribute depends on the key, the whole key, and nothing but the key.",
+      "why": "'The key' is 1NF (rows identified by a key, no repeating groups). 'The whole key' is 2NF (no partial dependency on part of a composite key). 'Nothing but the key' is 3NF (no transitive dependency through another non-key attribute).",
+      "source": "William Kent, A Simple Guide to Five Normal Forms (1983)"
+    },
+    {
+      "id": "mod-02",
+      "kind": "concept",
+      "prompt": "What problem does normalization solve? Name the three anomalies it prevents.",
+      "answer": "It stores each fact once, so the data can't contradict itself. It prevents update anomalies (changing a fact in one row but not its copies), insertion anomalies (being unable to record one fact without inventing another), and deletion anomalies (losing one fact when you delete a row about another).",
+      "points": [
+        "Each fact stored once; no self-contradiction",
+        "Update anomaly",
+        "Insertion anomaly",
+        "Deletion anomaly"
+      ],
+      "source": "Codd (1970-72); standard database texts"
+    },
+    {
+      "id": "mod-03",
+      "kind": "concept",
+      "prompt": "When is denormalizing the right call, and what does it cost?",
+      "answer": "In read-heavy analytical models, where data is loaded in batches and integrity is enforced by the load process rather than by each write. Star schemas deliberately denormalize dimensions. The cost is redundancy that the pipeline must keep consistent. Transactional systems that take many concurrent writes should stay normalized.",
+      "points": [
+        "Read-heavy, batch-loaded analytical workloads",
+        "Integrity moves to the load process",
+        "Cost: redundancy the pipeline must keep consistent",
+        "Keep write-heavy transactional systems normalized"
+      ],
+      "source": "Kimball & Ross; standard database texts"
+    },
+    {
+      "id": "mod-04",
+      "kind": "concept",
+      "prompt": "Surrogate vs natural keys: why do warehouses use meaningless surrogate keys?",
+      "answer": "Natural keys carry business meaning, so they change, get reused, and arrive formatted differently from different sources. A surrogate key is a stable, meaningless identifier that insulates the model from those changes and makes history tracking (Type 2 dimensions) possible. Keep the natural key as an attribute with a uniqueness rule so you can still look rows up by it.",
+      "points": [
+        "Natural keys change, get reused, vary across sources",
+        "Surrogates are stable and meaningless",
+        "Surrogates enable Type 2 history",
+        "Keep the natural key as a constrained attribute"
+      ],
+      "source": "Kimball & Ross"
+    },
+    {
+      "id": "mod-05",
+      "kind": "concept",
+      "prompt": "Why does `WHERE x NOT IN (SELECT y FROM t)` return no rows when one y is NULL?",
+      "answer": "SQL uses three-valued logic. Any comparison with NULL is UNKNOWN, not TRUE or FALSE. NOT IN expands to x <> y1 AND x <> y2 AND ..., and one UNKNOWN term makes the whole conjunction UNKNOWN or FALSE, never TRUE. WHERE keeps only TRUE rows. Use NOT EXISTS, or filter out the NULLs.",
+      "points": [
+        "Comparisons with NULL are UNKNOWN",
+        "WHERE keeps only TRUE",
+        "NOT IN is a chain of <> joined by AND",
+        "Use NOT EXISTS or exclude NULLs"
+      ],
+      "source": "ISO SQL semantics; any SQL reference"
+    },
+    {
+      "id": "mod-06",
+      "kind": "concept",
+      "prompt": "What does an index cost, and when does it fail to help?",
+      "answer": "Every insert, update and delete must maintain each index, and indexes take storage. An index helps selective predicates that touch a small fraction of rows. It rarely helps low-selectivity columns (a yes/no flag) or queries that read most of the table. For a composite index, column order matters: it serves queries that filter on its leading columns.",
+      "points": [
+        "Write and storage cost on every change",
+        "Helps selective predicates",
+        "Little help for low-selectivity columns or full scans",
+        "Composite indexes serve their leading columns"
+      ],
+      "source": "Standard database texts"
+    },
+    {
+      "id": "mod-07",
+      "kind": "concept",
+      "prompt": "What makes a data load idempotent, and why does it matter?",
+      "answer": "Running it twice produces the same result as running it once. Common patterns are replacing a whole partition or date range, or merging on keys instead of appending. It matters because loads fail and get retried: a rerun of an append-only load duplicates data, while an idempotent one can be retried safely.",
+      "points": [
+        "Same result whether run once or many times",
+        "Replace a partition/range, or merge on keys",
+        "Append-only reruns duplicate data",
+        "Makes retries and backfills safe"
+      ],
+      "source": "Common data-engineering practice"
+    },
+    {
+      "id": "mod-08",
       "kind": "fact",
       "prompt": "Kimball's four steps of dimensional design, in order.",
       "answer": "1. Select the business process. 2. Declare the grain. 3. Identify the dimensions. 4. Identify the facts.",
       "source": "Kimball & Ross, The Data Warehouse Toolkit, 3rd ed."
     },
     {
-      "id": "mod-02",
+      "id": "mod-09",
       "kind": "concept",
       "prompt": "What does 'declare the grain' mean, and what goes wrong if you skip it?",
-      "answer": "State exactly what one fact row represents, for example one row per service request per status change. Skip it and grains get mixed in one table, which causes double counting and measures that are right only at some levels of aggregation.",
+      "answer": "State exactly what one fact row represents, for example one row per order line, or one row per ticket per status change. Skip it and grains get mixed in one table, which causes double counting and measures that are right only at some levels of aggregation.",
       "points": [
         "Grain = the business meaning of one row",
         "Declared before dimensions and facts are chosen",
@@ -24,25 +110,25 @@
       "source": "Kimball & Ross"
     },
     {
-      "id": "mod-03",
+      "id": "mod-10",
       "kind": "fact",
-      "prompt": "Pothole lifecycle (reported, dispatched, repaired, inspected), with one row per pothole whose date columns fill in over time. Which fact-table type?",
+      "prompt": "An order moves through placed, paid, shipped and delivered, with one row per order whose milestone dates fill in over time. Which fact-table type?",
       "answer": "Accumulating snapshot.",
-      "why": "Transaction: one row per event. Periodic snapshot: one row per period (open requests at month end). Accumulating snapshot: one row per process instance, updated as milestones occur. It's the natural home for durations like time-to-dispatch.",
+      "why": "Transaction: one row per event. Periodic snapshot: one row per period (inventory at month end). Accumulating snapshot: one row per process instance, updated as milestones occur. It's the natural home for durations between steps.",
       "source": "Kimball & Ross"
     },
     {
-      "id": "mod-04",
+      "id": "mod-11",
       "kind": "fact",
       "prompt": "Slowly changing dimension Types 1, 2 and 3, one line each.",
       "answer": "Type 1: overwrite (no history). Type 2: add a new row with effective dates and a current flag (full history). Type 3: add a previous-value column (one step of history).",
       "source": "Kimball & Ross"
     },
     {
-      "id": "mod-05",
+      "id": "mod-12",
       "kind": "concept",
-      "prompt": "What are a conformed dimension and a bus matrix, and why do they matter across departments?",
-      "answer": "A conformed dimension has the same keys and meaning everywhere it is used, such as one Address, Date or Department dimension. That lets you drill across business processes. A bus matrix lists processes as rows and conformed dimensions as columns. It is the roadmap that keeps department models compatible with each other.",
+      "prompt": "What are a conformed dimension and a bus matrix, and why do they matter across teams?",
+      "answer": "A conformed dimension has the same keys and meaning everywhere it is used, such as one Customer, Date or Location dimension. That lets you drill across business processes. A bus matrix lists processes as rows and conformed dimensions as columns. It is the roadmap that keeps separately built models compatible.",
       "points": [
         "Same keys and meaning across fact tables",
         "Enables drill-across between processes",
@@ -51,47 +137,28 @@
       "source": "Kimball & Ross"
     },
     {
-      "id": "mod-06",
+      "id": "mod-13",
       "kind": "concept",
-      "prompt": "In DAX, how do row context and filter context differ, and what does CALCULATE do with a row context?",
-      "answer": "Row context is iteration row by row (calculated columns, iterators like SUMX), and on its own it filters nothing. Filter context is the set of filters on the model (slicers, visuals, CALCULATE arguments). CALCULATE performs context transition: it turns the current row context into an equivalent filter context.",
-      "points": [
-        "Row context = iteration, doesn't filter",
-        "Filter context = filters on the model",
-        "CALCULATE converts row context to filter context (context transition)"
-      ],
-      "source": "Russo & Ferrari, The Definitive Guide to DAX (SQLBI)"
-    },
-    {
-      "id": "mod-07",
-      "kind": "concept",
-      "prompt": "Why does Power BI's engine favor a star schema over one wide flat table or a deep snowflake?",
-      "answer": "VertiPaq stores data by column, so low-cardinality dimension columns compress well, and dimensions filter facts through one-to-many relationships. A wide flat table repeats attributes and invites inconsistent measures and grain errors. A deep snowflake adds relationship hops and confuses report authors.",
+      "prompt": "Why do columnar analytical engines favor a star schema over one wide flat table or a deep snowflake?",
+      "answer": "Columnar storage compresses low-cardinality dimension columns well, and dimensions filter facts through simple one-to-many joins. A wide flat table repeats attributes on every row and invites inconsistent measures and grain errors. A deep snowflake adds join hops and confuses the people writing reports.",
       "points": [
         "Columnar compression favors low-cardinality dimension columns",
-        "Dimensions filter facts via one-to-many relationships",
+        "Dimensions filter facts via one-to-many joins",
         "Flat tables: repetition, grain errors, inconsistent measures",
         "Snowflakes: extra hops and author confusion"
       ],
-      "source": "Microsoft Learn: Star schema guidance for Power BI"
+      "source": "Kimball & Ross; BI vendor modeling guidance"
     },
     {
-      "id": "mod-08",
-      "kind": "fact",
-      "prompt": "What is the default cross-filter direction for a one-to-many relationship in Power BI, and what's the risk of switching it to 'both'?",
-      "answer": "Single: the one side filters the many side. Bidirectional filtering can create ambiguous filter paths and slower queries. Keep relationships single and enable bidirectional filtering per measure (CROSSFILTER) or use TREATAS.",
-      "source": "Microsoft Learn: relationship guidance"
-    },
-    {
-      "id": "mod-09",
+      "id": "mod-14",
       "kind": "judgment",
-      "prompt": "A department wants 'one big flat table' in Power BI so staff can self-serve. What do you recommend, and how do you sell it?",
-      "answer": "Name the risks: mixed grains, double counting, and every report reinventing its measures. Offer a shared semantic model instead: a star schema with a few conformed dimensions and curated measures. One certified dataset then feeds many reports. Teach staff to build reports on that model rather than their own extracts. Sell it with a before-and-after on their own numbers, ideally a total that comes out differently today depending on who built the report.",
+      "prompt": "A team wants 'one big flat table' so analysts can self-serve. What do you recommend, and how do you sell it?",
+      "answer": "Name the risks: mixed grains, double counting, and every report reinventing its measures. Offer a shared semantic model instead: a star schema with a few conformed dimensions and curated, documented measures. One certified model then feeds many reports. Teach people to build on that model rather than their own extracts. Sell it with a before-and-after on their own numbers, ideally a total that comes out differently today depending on who built the report.",
       "points": [
         "Name the risks: grain, double counting, inconsistent measures",
         "Propose a shared semantic model (star, conformed dimensions, curated measures)",
-        "One certified dataset feeds many reports",
-        "Train report building on the shared model",
+        "One certified model feeds many reports",
+        "Teach report building on the shared model",
         "Persuade with their own numbers"
       ],
       "source": "Synthesis"

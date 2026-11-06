@@ -1,0 +1,102 @@
+{
+  "deck": "chg",
+  "code": "CHG",
+  "title": "Change management",
+  "blurb": "Models for why change stalls and what moves it: urgency, transitions, adoption curves, defaults and resistance.",
+  "cards": [
+    {
+      "id": "chg-01",
+      "kind": "fact",
+      "prompt": "Lewin's three-stage model of change.",
+      "answer": "Unfreeze, change, refreeze.",
+      "why": "Unfreezing (making the case that the current state can't continue) is the stage most often skipped. Refreezing is what keeps a change from sliding back.",
+      "source": "Kurt Lewin (1947)"
+    },
+    {
+      "id": "chg-02",
+      "kind": "concept",
+      "prompt": "Bridges distinguishes change from transition. What's the difference, and what are the three phases of a transition?",
+      "answer": "Change is the external event: the new system, structure or rule. Transition is the psychological process people go through to come to terms with it. Its phases are endings (letting go of the old way and identity), the neutral zone (an in-between period of confusion that is also when new patterns can form), and new beginnings. Leaders tend to plan the change and neglect the endings.",
+      "points": [
+        "Change = situational; transition = psychological",
+        "Endings: letting go comes first",
+        "Neutral zone: confusion, but also creativity",
+        "New beginnings",
+        "Leaders under-manage endings"
+      ],
+      "source": "William Bridges, Managing Transitions (1991)"
+    },
+    {
+      "id": "chg-03",
+      "kind": "fact",
+      "prompt": "In Kotter's model, what is step one, and what did he call the most common reason transformations fail?",
+      "answer": "Establish a sense of urgency. The most common error is not establishing enough of it: allowing too much complacency.",
+      "why": "The eight steps: urgency; guiding coalition; vision and strategy; communicate the vision; empower broad action; short-term wins; consolidate gains; anchor in the culture.",
+      "source": "John Kotter, Leading Change: Why Transformation Efforts Fail (HBR, 1995)"
+    },
+    {
+      "id": "chg-04",
+      "kind": "concept",
+      "prompt": "Why does Kotter insist on planned short-term wins, and what makes a win count?",
+      "answer": "Long efforts lose momentum and give skeptics ammunition. Visible wins show that the sacrifice is paying off, reward the people driving the change, undermine cynics, and keep sponsors on board. To count, a win must be visible, unambiguous, and clearly tied to the change, and it has to be planned rather than hoped for.",
+      "points": [
+        "Sustains momentum and sponsor support",
+        "Rewards change agents; undercuts cynics",
+        "Visible, unambiguous, tied to the change",
+        "Planned, not hoped for"
+      ],
+      "source": "Kotter, Leading Change (1996)"
+    },
+    {
+      "id": "chg-05",
+      "kind": "fact",
+      "prompt": "Prosci's ADKAR: the five elements, in order.",
+      "answer": "Awareness, Desire, Knowledge, Ability, Reinforcement.",
+      "why": "As a diagnostic, find the first element that is missing. Training (Knowledge, Ability) fails if Awareness or Desire is absent.",
+      "source": "Jeff Hiatt, ADKAR (2006)"
+    },
+    {
+      "id": "chg-06",
+      "kind": "fact",
+      "prompt": "Rogers' adopter categories, with their shares.",
+      "answer": "Innovators 2.5%, early adopters 13.5%, early majority 34%, late majority 34%, laggards 16%.",
+      "why": "Early adopters are the opinion leaders the early majority watches. Recruit them before trying to convince everyone.",
+      "source": "Everett Rogers, Diffusion of Innovations"
+    },
+    {
+      "id": "chg-07",
+      "kind": "fact",
+      "prompt": "The Heaths' three-part framework for change in Switch.",
+      "answer": "Direct the Rider (the rational side: give clear direction), motivate the Elephant (the emotional side: make people feel it), and shape the Path (change the environment so the behavior is easier).",
+      "source": "Chip & Dan Heath, Switch (2010)"
+    },
+    {
+      "id": "chg-08",
+      "kind": "concept",
+      "prompt": "Why is changing the default often more effective than persuasion?",
+      "answer": "People disproportionately stay with whatever happens if they do nothing (status quo bias, inertia, an implied endorsement). Making the desired behavior the default, with an easy opt-out, changes behavior far more than information campaigns do. The classic evidence is automatic enrollment in retirement savings plans, which sharply raised participation among new hires.",
+      "points": [
+        "Status quo bias and inertia",
+        "Defaults signal an implied recommendation",
+        "Opt-out defaults beat persuasion",
+        "Evidence: automatic retirement-plan enrollment"
+      ],
+      "source": "Madrian & Shea, The Power of Suggestion (QJE, 2001); Thaler & Sunstein, Nudge (2008)"
+    },
+    {
+      "id": "chg-09",
+      "kind": "judgment",
+      "prompt": "You're rolling out a new standard that teams didn't ask for, and a respected team lead is openly resisting. What do you do?",
+      "answer": "Treat the resistance as information: find out what it protects, whether that's workload, a real flaw, or a loss of control or status. Involve the resister in shaping the rollout. Lower the cost of adoption through templates, defaults and help. Start with willing early adopters and a visible win. Separate can't (knowledge, ability) from won't (desire), because they need different responses. Reinforce and recognize the people who adopt it.",
+      "points": [
+        "Resistance as information: what does it protect?",
+        "Involve resisters in design",
+        "Reduce adoption cost (templates, defaults, help)",
+        "Early adopters and a visible win first",
+        "Diagnose can't vs won't",
+        "Reinforce and recognize adoption"
+      ],
+      "source": "Synthesis: ADKAR; Rogers; Heath & Heath"
+    }
+  ]
+}

@@ -10,9 +10,10 @@ const DECKS = __DECKS__;
 const BUILD = "__BUILD__";
 const INBOX = { deck: "inb", code: "INB", title: "Inbox", blurb: "Cards you added, or accepted from Claude.", cards: [] };
 const DECK_META = new Map([...DECKS, INBOX].map((d) => [d.deck, d]));
+// Role-level only: cards and explanations stay general, never tied to one organization.
 const LEARNER =
-  "a data management leader in a mid-size US city government: chairs a citywide data governance committee and analyst community, " +
-  "implements a data catalog over on-prem SQL Server, SSIS and Power BI, and trains city staff. Economist by training. " +
+  "an experienced data leader whose work spans data governance, metadata, data modeling and databases, analytics, " +
+  "change management, capability building and leadership. Economist by training. " +
   "Wants terse, precise, non-sycophantic explanations; skip basics they already know.";
 const LS_KEY = "card-catalog:v1";
 const RATING = { 1: "Again", 2: "Hard", 3: "Good", 4: "Easy" };
@@ -210,9 +211,9 @@ ${tries || "- none recorded"}
 OTHER CARDS IN THE SAME DECK (look for interference or confusable pairs):
 ${near || "- none"}
 
-Write for someone who knows the field. No definitions of basics, no pep talk. If attempts have no typed text, infer the likely confusion from the card and its neighbours and say that you are inferring.
+Write for someone who knows the field. No definitions of basics, no pep talk. Keep it general: no specific organizations, places, vendors or products unless the card is about one. If attempts have no typed text, infer the likely confusion from the card and its neighbours and say that you are inferring.
 Reply with only JSON:
-{"diagnosis":"1-2 sentences: what they get wrong and why it is tempting","explanation":"at most 120 words","hook":"one memorable handle: a sharp contrast, a concrete city example, or a mnemonic","contrast_card":{"prompt":"...","answer":"..."},"rewrite":null}
+{"diagnosis":"1-2 sentences: what they get wrong and why it is tempting","explanation":"at most 120 words","hook":"one memorable handle: a sharp contrast, a concrete workplace example, or a mnemonic","contrast_card":{"prompt":"...","answer":"..."},"rewrite":null}
 Set "contrast_card" to null unless a discrimination card would help. Set "rewrite" to {"prompt","answer"} only if the card itself is ambiguous or overloaded.`;
 }
 function patternsPrompt(missed) {
@@ -232,7 +233,8 @@ At most 4 patterns and 5 new cards. Concept and judgment cards need 2-5 points.`
 function draftPrompt(note) {
   return `Turn this note into spaced-repetition cards for the learner.
 Learner: ${LEARNER}
-Rules: each card tests one idea; the prompt is precise and has one consistent answer; no yes/no prompts; nothing they would not need at work; prefer why/how/when over bare what when the note supports it. Use only what the note states or directly implies. Add no outside facts.
+Rules: each card tests one idea; the prompt is precise and has one consistent answer; no yes/no prompts; prefer why/how/when over bare what when the note supports it. Use only what the note states or directly implies. Add no outside facts.
+Make every card broadly applicable: extract the transferable principle, and leave out the names of the organization, its people, departments, systems, vendors and places. A card should make sense to a data professional anywhere.
 Kinds: "fact" (short recall), "concept" (explain in a few sentences; give 2-5 points), "judgment" (a realistic scenario needing a decision; give 3-5 points).
 
 NOTE:
@@ -494,7 +496,7 @@ function doneScreen() {
 ${backlog ? `<p>${backlog} overdue cards are waiting beyond today's cap of ${S.config.reviewsPerDay}. They lose little by waiting: the ones decaying fastest are shown first each day. New cards stay paused until the backlog clears.</p>` : ""}
 <p class="mono strip">${f.map((n, i) => `<span><small>${i === 0 ? "today" : i === 1 ? "tmrw" : "+" + i}</small>${n}</span>`).join("")}</p>
 <p class="muted">${left} new cards in the catalog. ${S.config.newPerDay} are introduced per day.</p>
-<div class="row"><a class="btn" href="#add">Turn a work note into cards</a><a class="btn ghost" href="#patterns">See what you keep missing</a></div></section>`;
+<div class="row"><a class="btn" href="#add">Turn a note into cards</a><a class="btn ghost" href="#patterns">See what you keep missing</a></div></section>`;
 }
 
 function deckStats(deck) {
@@ -541,9 +543,9 @@ function deckOptions(sel) {
 function viewAdd() {
   const a = S.add;
   const busy = S.busy.has("draft");
-  return `<section class="panel"><h2>Turn a work note into cards</h2>
-<p class="muted">Paste something you learned: a meeting takeaway, a policy excerpt, a fix you found. Claude drafts cards from it, and you edit or discard them. Your notes and cards stay in this private artifact.</p>
-<label class="lbl" for="add-note">Note</label><textarea id="add-note" rows="6" placeholder="e.g. The catalog's SQL Server scan only sees view definitions; procedure lineage needs query-log capture…">${esc(a.note)}</textarea>
+  return `<section class="panel"><h2>Turn a note into cards</h2>
+<p class="muted">Paste something you learned: a meeting takeaway, a passage from a book, a mistake you don't want to repeat. Claude drafts cards that keep the general principle and leave out the names of people, systems and organizations. You edit or discard them. Your notes and cards stay in this private artifact.</p>
+<label class="lbl" for="add-note">Note</label><textarea id="add-note" rows="6" placeholder="e.g. We reran a failed load and doubled a month of records, because the job appends instead of replacing the partition…">${esc(a.note)}</textarea>
 <div class="row"><label class="lbl inline" for="add-deck">Deck</label><select id="add-deck">${deckOptions(a.deck)}</select>
 ${claudeReady() ? `<button type="button" class="btn primary" data-act="draft" ${busy || !a.note.trim() ? "disabled" : ""}>${busy ? "Drafting…" : "Draft cards"}</button>` : `<span class="muted">Claude is off. Use the manual form below.</span>`}</div>
 ${S.errs.get("draft") ? `<p class="err">${esc(S.errs.get("draft"))}</p>` : ""}

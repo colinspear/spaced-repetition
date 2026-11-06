@@ -1,0 +1,121 @@
+{
+  "deck": "met",
+  "code": "MET",
+  "title": "Metadata & lineage",
+  "blurb": "What catalogs hold, how lineage gets extracted, where it breaks, and how to hold a tool to its claims.",
+  "cards": [
+    {
+      "id": "met-01",
+      "kind": "fact",
+      "prompt": "Glossary, dictionary or catalog: which one says what a business term means?",
+      "answer": "The business glossary.",
+      "why": "Dictionary: technical, field-level descriptions (names, types, allowed values). Catalog: a searchable inventory of data assets with owners, metadata and lineage, linking glossary terms to physical columns.",
+      "source": "DAMA-DMBOK2, ch. 12 (Metadata Management)"
+    },
+    {
+      "id": "met-02",
+      "kind": "fact",
+      "prompt": "DMBOK's three kinds of metadata, plus an example of the one people forget.",
+      "answer": "Business, technical, operational. Operational is the forgotten one: job run times, refresh timestamps, row counts, error and access logs.",
+      "source": "DAMA-DMBOK2, ch. 12"
+    },
+    {
+      "id": "met-03",
+      "kind": "concept",
+      "prompt": "Static (design-time) vs runtime lineage: how is each captured, and what does each miss?",
+      "answer": "Static lineage parses definitions (view and procedure code, ETL jobs, report queries) to infer dependencies. It covers paths that haven't run lately, but it misses anything built at runtime (dynamic SQL, parameterized connections) and can show paths that never execute. Runtime lineage records what actually ran (query logs, job events). It is accurate for those paths but only covers the observation window.",
+      "points": [
+        "Static = parse code/definitions; runtime = observe execution",
+        "Static misses runtime-built SQL and connections",
+        "Static can include dead paths",
+        "Runtime only covers what ran in the window"
+      ],
+      "source": "General; see the OpenLineage docs for the runtime model"
+    },
+    {
+      "id": "met-04",
+      "kind": "concept",
+      "prompt": "Why is lineage through stored procedures and ETL code hard to extract automatically? Give at least four reasons.",
+      "answer": "Dynamic SQL keeps object names in strings assembled at runtime. Temporary tables and variables hold intermediate steps that aren't catalog objects. Runtime DDL (SELECT INTO, CREATE during a run) makes objects that don't exist at parse time. Deferred name resolution lets code reference objects that don't exist yet. Synonyms, cross-database references, linked servers and views on views add indirection. Branches mean a static parser can't tell which path runs.",
+      "points": [
+        "Dynamic SQL hides names in strings",
+        "Temporary objects break the chain",
+        "Runtime DDL creates objects during execution",
+        "Deferred name resolution",
+        "Indirection: synonyms, cross-database and linked-server references",
+        "Control flow: static parsing can't know which branch runs"
+      ],
+      "source": "General; vendor documentation on dependency tracking"
+    },
+    {
+      "id": "met-05",
+      "kind": "concept",
+      "prompt": "Lineage from a BI tool back to the database often breaks at the seam, even when each connector works on its own. Why?",
+      "answer": "The two ends have to be stitched together by matching the source's identity. The server and database named in the BI tool (an alias, a fully qualified name, an IP, an instance name or port, a gateway) must match how the database connector registered that server. Native SQL embedded in reports also has to be parsed to know which tables it touches.",
+      "points": [
+        "Cross-system lineage is an identity-resolution problem between connectors",
+        "Name variants for the same server break the match",
+        "Embedded native queries need SQL parsing",
+        "Parameters and gateways can hide the real source"
+      ],
+      "source": "General"
+    },
+    {
+      "id": "met-06",
+      "kind": "fact",
+      "prompt": "Impact analysis vs root-cause analysis: which direction does each walk the lineage graph?",
+      "answer": "Impact analysis walks downstream: what breaks if I change this? Root-cause analysis walks upstream: where did this bad number come from?",
+      "source": "General"
+    },
+    {
+      "id": "met-07",
+      "kind": "concept",
+      "prompt": "When is table-level lineage not enough?",
+      "answer": "When you need to know which source fields feed a specific column or measure. Examples: assessing a definition change to one field, tracing personal data, or chasing one bad number back through one transformed column. Table-level lineage shows that a dependency exists. Column-level lineage shows which fields are involved and through what transformation.",
+      "points": [
+        "Field-level change impact",
+        "Tracing personal or sensitive data",
+        "Debugging a single wrong metric",
+        "Table-level shows existence; column-level shows which fields and how"
+      ],
+      "source": "General"
+    },
+    {
+      "id": "met-08",
+      "kind": "fact",
+      "prompt": "What is OpenLineage, and what are its three core entities?",
+      "answer": "An open standard (LF AI & Data Foundation) for emitting runtime lineage events from pipelines. Its core entities are Job, Run and Dataset, extended through facets.",
+      "why": "Marquez is the reference backend. Airflow, Spark and dbt have integrations.",
+      "source": "openlineage.io"
+    },
+    {
+      "id": "met-09",
+      "kind": "judgment",
+      "prompt": "A tool vendor says 'automated lineage is supported.' Write the acceptance criteria you'd put in the contract.",
+      "answer": "Name the exact sources, versions and deployment models in scope. Name the object types covered (tables, views, procedures, functions, ETL jobs, BI datasets and reports) and the granularity (table or column). Require end-to-end stitching across systems using your real server names. Supply a test fixture, a known chain with its expected graph, and have it demonstrated on your environment. Set the refresh cadence, what is automated versus manual, and the remedy if a criterion fails.",
+      "points": [
+        "Exact sources, versions, deployment models",
+        "Object types in scope",
+        "Granularity: table vs column",
+        "Cross-system stitching on your real names",
+        "A test fixture with expected graph, demonstrated on your data",
+        "Refresh cadence, manual vs automated, remedy on failure"
+      ],
+      "source": "Synthesis"
+    },
+    {
+      "id": "met-10",
+      "kind": "judgment",
+      "prompt": "You have a new data catalog and can't document everything. How do you choose what goes in first, and how will you know it's working?",
+      "answer": "Start from the high-stakes uses: core reporting, decisions with money attached, anything published. Catalog the assets that feed them in depth, with owners, CDE definitions and lineage. Go deep on a few assets rather than shallow on many. Measure use, not entries: searches, views, and questions answered without emailing someone. Iterate with the stewards and retire stale entries.",
+      "points": [
+        "Prioritize by use case and stakes, not by system",
+        "Depth on a few assets beats shallow coverage of many",
+        "Attach owners, definitions and lineage to what you load",
+        "Measure adoption: searches, views, questions answered, time to find data",
+        "Iterate with stewards; prune stale entries"
+      ],
+      "source": "Synthesis"
+    }
+  ]
+}

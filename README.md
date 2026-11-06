@@ -1,6 +1,8 @@
 # Card Catalog
 
-Spaced repetition for the domain knowledge a city data-management leader uses at work: governance, lineage across SQL Server, SSIS and Power BI, dimensional modeling, civic data sources, record linkage, disclosure control, measurement, and capacity building.
+Spaced repetition for the principles a data leader uses: data governance, metadata and lineage, data modeling and databases, record linkage, privacy, evidence and measurement, change management, capability building, and leadership.
+
+**Content rule:** the topics come from the learner's work, but the cards never do. Every card is a general principle or best practice that would hold in any organization. There are no employer, place, vendor or product specifics, and a test (`test/decks.test.mjs`) enforces that. Cards drafted from your own notes on the Add tab get the same treatment: Claude keeps the transferable principle and drops the names.
 
 It is built on Patrick Collison's [suggestion](https://x.com/patrickc/status/2118352452923912419) (Nov 5, 2026):
 
@@ -13,7 +15,7 @@ It is built on Patrick Collison's [suggestion](https://x.com/patrickc/status/211
 | Patrick's phrase | What it is here |
 | --- | --- |
 | custom spaced repetition app | Single-page app published as a private Claude artifact. Reviews, card state and explanations live in the artifact's private database. |
-| algorithm adapted to the problem domain | An FSRS-6 core with a domain layer on top (`src/engine.js`). Three card kinds have their own targets: facts 90%, concepts 85%, judgment scenarios 80%, because writing a scenario answer costs ~10x a fact recall. The maximum interval is one year, since work knowledge goes stale. Study days roll over at 4am. Reviews interleave across decks. |
+| algorithm adapted to the problem domain | An FSRS-6 core with a domain layer on top (`src/engine.js`). Three card kinds have their own targets: facts 90%, concepts 85%, judgment scenarios 80%, because writing a scenario answer costs ~10x a fact recall. The maximum interval is one year, so every card resurfaces for a relevance check. Study days roll over at 4am. Reviews interleave across decks. |
 | algorithm adapted to you | Three stages, each gated on having enough data (see below). |
 | "review my learning and improve the efficiency of your scheduler" | `tools/optimize.py`: a held-out refit of all 21 FSRS parameters plus a cost-based optimal retention per card kind, written back to the artifact's `config/scheduler` doc. Run it from a Claude Code session with the prompt on the Tuning tab. |
 | tailored explanations for anything you consistently get wrong | Typed answers are logged. After two misses, a card offers an explanation aimed at your actual wrong answers. It can propose a contrast card or a rewrite. "Analyze my misses" looks for confusions across cards. |
@@ -42,22 +44,23 @@ The app tells you how many cards are waiting and that they wait without penalty.
 
 ## Decks
 
-| Deck | Cards | Why it's here |
+| Deck | Cards | What it covers |
 | --- | --- | --- |
-| GOV Governance & stewardship | 12 | Committee vocabulary, operating models, CDEs, the steward conversation |
-| LIN Lineage & the Microsoft stack | 10 | How lineage is extracted from SQL Server, SSIS and Power BI, why it breaks, vendor acceptance criteria |
-| MOD Dimensional modeling & Power BI | 9 | Grain, fact types, conformed dimensions, DAX context |
-| CIV Civic data sources | 15 | ACS, NIBRS, CAD/RMS, Open311, NY property classes, SBL/SWIS, FOIL, LGS-1, address standards |
-| LNK Record linkage | 7 | Fellegi-Sunter, blocking, thresholds, why addresses are weak keys |
-| PRV Privacy & disclosure | 7 | Re-identification, suppression, differential privacy, mapping 311 data |
-| EVD Evidence & measurement | 6 | Regression to the mean, Campbell's law, small-area rates, Simpson's paradox |
-| CAP Capacity building | 7 | Kirkpatrick, desirable difficulties, ADKAR, communities of practice |
+| GOV Data governance | 12 | Roles, operating models, CDEs, quality dimensions, data mesh, policy vs standard, competing definitions |
+| MET Metadata & lineage | 10 | Glossary vs catalog, static vs runtime lineage, why lineage breaks, holding tools to their claims, catalog rollout |
+| MOD Data modeling & databases | 14 | Normal forms and anomalies, keys, NULL logic, indexes, idempotent loads, grain, fact types, SCDs, conformed dimensions |
+| LNK Record linkage | 8 | Fellegi-Sunter, blocking, term frequency, thresholds, match rate vs accuracy |
+| PRV Privacy & disclosure | 7 | Re-identification, k-anonymity, suppression, differential privacy, the mosaic effect, minimization |
+| EVD Evidence & measurement | 10 | Regression to the mean, Campbell's law, small numbers, Simpson's paradox, administrative data, series breaks, proxies |
+| CHG Change management | 9 | Lewin, Bridges, Kotter, ADKAR, Rogers, Switch, defaults, resistance |
+| LRN Learning & capability building | 8 | Kirkpatrick, desirable difficulties, Dreyfus, worked examples, curse of knowledge, communities of practice |
+| LDR Leadership | 10 | Psychological safety, adaptive challenges, influence without authority, feedback, decision rights, teams |
 
-Cards marked **verify** are ones I'm not fully certain of (exact product setting names, schedule effective dates). Check the cited source before you rely on them, and flag them if they're wrong.
+Cards marked **verify** are ones I'm not fully certain of. Check the cited source before you rely on them, and flag them if they're wrong.
 
 ## Privacy
 
-This repo is public and holds only generic, sourced domain content. Nothing about your employer's systems, vendors or colleagues is in it. Your reviews, typed answers, notes, added cards, flags and explanations live only in the private artifact's database, readable by you alone. Exports are gitignored. Nothing from the database is copied into this repo unless you ask.
+This repo is public and holds only general, sourced content. Your reviews, typed answers, notes, added cards, flags and explanations live only in the private artifact's database, readable by you alone. Exports are gitignored. Nothing from the database is copied into this repo unless you ask.
 
 ## Development
 

@@ -2,13 +2,13 @@
   "deck": "evd",
   "code": "EVD",
   "title": "Evidence & measurement",
-  "blurb": "The traps that wreck city analytics: selection, small numbers, shifting mixes and measures that become targets.",
+  "blurb": "The traps that wreck analytics: selection, small numbers, shifting mixes, broken series, proxies and measures that become targets.",
   "cards": [
     {
       "id": "evd-01",
       "kind": "concept",
-      "prompt": "A hot-spot intervention targets the 10 blocks with the most incidents last quarter, and incidents drop the next quarter. Why isn't that evidence it worked?",
-      "answer": "Regression to the mean. Blocks picked because they had an extreme period tend to look more typical the next period whether or not anything was done. You need a comparison group selected the same way, or longer pre-intervention trends.",
+      "prompt": "An intervention targets the 10 sites with the most incidents last quarter, and incidents drop the next quarter. Why isn't that evidence it worked?",
+      "answer": "Regression to the mean. Sites picked because they had an extreme period tend to look more typical the next period whether or not anything was done. You need a comparison group selected the same way, or longer pre-intervention trends.",
       "points": [
         "Selection on an extreme value",
         "Regression to the mean happens without any intervention",
@@ -35,8 +35,8 @@
     {
       "id": "evd-04",
       "kind": "concept",
-      "prompt": "Why do 'top 10 tracts by rate' lists keep featuring tiny tracts, and what do you do about it?",
-      "answer": "Small denominators make rates noisy, so by chance small areas fill both the top and the bottom of the ranking. Use funnel plots, empirical-Bayes shrinkage toward the overall rate, minimum denominators, or pooled years, and show the uncertainty.",
+      "prompt": "Why do 'top 10 by rate' rankings of branches, schools or neighborhoods keep featuring the smallest ones, and what do you do about it?",
+      "answer": "Small denominators make rates noisy, so by chance small units fill both the top and the bottom of the ranking. Use funnel plots, empirical-Bayes shrinkage toward the overall rate, minimum denominators, or pooled years, and show the uncertainty.",
       "points": [
         "Small denominators produce extreme rates in both directions",
         "Funnel plots or shrinkage",
@@ -48,13 +48,13 @@
     {
       "id": "evd-05",
       "kind": "judgment",
-      "prompt": "A council member asks for 'the 10 worst blocks for code violations' from raw counts. What do you ask and adjust before you send a list?",
-      "answer": "Normalize per parcel or housing unit rather than using raw counts. Raise detection bias: violations reflect where inspectors go and who complains, because enforcement is largely complaint-driven. Small numbers make rankings unstable, so pool time or shrink the rates. Pin down the time window and which violations count (open or closed, severity). Ask what decision the list is for, and present it with uncertainty and context.",
+      "prompt": "An executive asks for 'the 10 worst locations for complaints' from raw counts. What do you ask and adjust before you send a list?",
+      "answer": "Normalize by an exposure measure (customers, units, visits) rather than using raw counts. Raise detection bias: complaints reflect who complains and where staff look, not only where problems are. Small numbers make rankings unstable, so pool time or shrink the rates. Pin down the time window and which complaints count (type, severity, open or closed). Ask what decision the list is for, and present it with uncertainty and context.",
       "points": [
-        "Normalize (per parcel or housing unit)",
-        "Detection and complaint bias",
+        "Normalize by exposure",
+        "Detection and reporting bias",
         "Small-number instability",
-        "Define window and violation types",
+        "Define the window and the categories",
         "Ask what decision it informs; show uncertainty"
       ],
       "source": "Synthesis"
@@ -62,14 +62,62 @@
     {
       "id": "evd-06",
       "kind": "concept",
-      "prompt": "Average 311 response time improved in every district, yet the citywide average got worse. How?",
-      "answer": "Simpson's paradox. The mix shifted: more requests now come from districts or request types with long response times, so the weighted average rises even though every subgroup improved. Report stratified figures or standardize the mix.",
+      "prompt": "Average resolution time improved in every region, yet the organization-wide average got worse. How?",
+      "answer": "Simpson's paradox. The mix shifted: more cases now come from regions or case types with long resolution times, so the weighted average rises even though every subgroup improved. Report stratified figures or standardize the mix.",
       "points": [
         "Composition shift between subgroups",
         "Weighted average can move against every subgroup",
         "Stratify or standardize"
       ],
       "source": "Standard"
+    },
+    {
+      "id": "evd-07",
+      "kind": "concept",
+      "prompt": "Inspections, complaints and enforcement records all count something. What do they actually measure, and what follows?",
+      "answer": "They record the organization's process: where it looked, who reported, what staff chose to write down. That mixes the underlying problem with effort and reporting behavior. More inspectors or an easier complaint channel raise counts with no change in the problem. Model or at least report effort alongside the counts, and be wary of comparing areas with different detection.",
+      "points": [
+        "Administrative data measures the process, not just the phenomenon",
+        "Counts move with effort and reporting behavior",
+        "Report effort alongside counts",
+        "Detection differences confound comparisons"
+      ],
+      "source": "Standard measurement practice"
+    },
+    {
+      "id": "evd-08",
+      "kind": "concept",
+      "prompt": "A metric's definition, source system or coverage changes partway through a time series. What do you do?",
+      "answer": "Treat it as a break in the series, not a trend. Mark the break on every chart, run old and new methods in parallel for an overlap period if you can, and either bridge (back-cast) with the overlap or report the two segments separately.",
+      "why": "Example: US national crime statistics broke in 2021 when the FBI moved to an incident-based system and many agencies hadn't converted.",
+      "points": [
+        "A method change is a break, not a trend",
+        "Annotate the break",
+        "Parallel run for an overlap period",
+        "Bridge with the overlap, or report segments separately"
+      ],
+      "source": "Standard statistical practice"
+    },
+    {
+      "id": "evd-09",
+      "kind": "fact",
+      "prompt": "Two estimates have overlapping 95% confidence intervals. Does that mean the difference isn't significant?",
+      "answer": "No. Test the difference itself. For independent estimates its standard error is sqrt(SE1² + SE2²), which is smaller than SE1 + SE2, so intervals can overlap while the difference is still significant.",
+      "source": "Schenker & Gentleman, On judging the significance of differences by examining the overlap between confidence intervals (2001)"
+    },
+    {
+      "id": "evd-10",
+      "kind": "concept",
+      "prompt": "A field classifies records for one administrative purpose, such as a land-use code for tax assessment. Why is it risky to use it to count a real-world state, like vacant buildings?",
+      "answer": "The code answers the question its process asks, not yours. An abandoned house usually keeps its residential code, and codes lag reality. Treat it as a proxy, look for direct signals of the state you care about, validate the proxy against ground truth, and define the target state explicitly.",
+      "points": [
+        "Codes answer their own process's question",
+        "Classification lags and diverges from reality",
+        "Seek direct signals; triangulate sources",
+        "Validate the proxy against ground truth",
+        "Define the target state explicitly"
+      ],
+      "source": "Standard measurement practice"
     }
   ]
 }

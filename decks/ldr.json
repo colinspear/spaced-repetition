@@ -1,0 +1,119 @@
+{
+  "deck": "ldr",
+  "code": "LDR",
+  "title": "Leadership",
+  "blurb": "Influence, decisions, feedback and teams: principles for leading work you don't fully control.",
+  "cards": [
+    {
+      "id": "ldr-01",
+      "kind": "concept",
+      "prompt": "What is psychological safety, and what is it not?",
+      "answer": "A shared belief that the team is safe for interpersonal risk-taking: asking questions, admitting mistakes, raising concerns. It is not niceness, comfort or lowered standards. Edmondson pairs it with accountability: high safety plus high standards is the learning zone, and high safety with low standards is just comfort.",
+      "points": [
+        "Shared belief that interpersonal risk is safe",
+        "Not niceness or lowered standards",
+        "Safety plus accountability = learning zone",
+        "Safety without standards = comfort zone"
+      ],
+      "source": "Amy Edmondson (1999); The Fearless Organization (2018)"
+    },
+    {
+      "id": "ldr-02",
+      "kind": "concept",
+      "prompt": "Heifetz distinguishes technical problems from adaptive challenges. What's the difference, and what's the classic leadership failure?",
+      "answer": "A technical problem has a known solution that an expert or authority can implement. An adaptive challenge requires the people who have the problem to learn and change their values, habits or loyalties, so no one can solve it for them. The classic failure is treating an adaptive challenge as a technical one, such as buying a tool to fix a culture problem.",
+      "points": [
+        "Technical: known solution, expert can apply it",
+        "Adaptive: the people with the problem must change",
+        "Authority can't solve adaptive challenges by itself",
+        "Failure: applying technical fixes to adaptive problems"
+      ],
+      "source": "Ronald Heifetz, Leadership Without Easy Answers (1994)"
+    },
+    {
+      "id": "ldr-03",
+      "kind": "concept",
+      "prompt": "Cohen and Bradford's model of influence without authority: how does it work?",
+      "answer": "Treat the other person as a potential ally. Clarify what you need, then understand their world: their pressures, goals and what they value, their 'currencies'. Influence comes from exchange: offer what they value (help, information, recognition, access) in return for what you need, and build the relationship so the exchanges continue.",
+      "points": [
+        "Assume a potential ally",
+        "Clarify your goals",
+        "Diagnose their world and currencies",
+        "Exchange what they value for what you need",
+        "Invest in the relationship"
+      ],
+      "source": "Cohen & Bradford, Influence Without Authority (1990)"
+    },
+    {
+      "id": "ldr-04",
+      "kind": "fact",
+      "prompt": "Situational leadership: the four styles, and what decides which to use.",
+      "answer": "Directing, coaching, supporting, delegating. The choice depends on the person's development level on that specific task: their competence and commitment, not their seniority.",
+      "why": "The same person can need directing on a new task and delegating on a familiar one.",
+      "source": "Hersey & Blanchard; Blanchard, SLII"
+    },
+    {
+      "id": "ldr-05",
+      "kind": "fact",
+      "prompt": "The SBI feedback model.",
+      "answer": "Situation, Behavior, Impact. Name when and where, describe the observable behavior (not character or intent), and say what effect it had. Then ask for their view.",
+      "source": "Center for Creative Leadership"
+    },
+    {
+      "id": "ldr-06",
+      "kind": "fact",
+      "prompt": "Bain's RAPID decision roles.",
+      "answer": "Recommend, Agree, Perform, Input, Decide. Exactly one person holds the D.",
+      "why": "Most decision gridlock comes from unclear D, or from too many people who believe they hold an A (a veto).",
+      "source": "Rogers & Blenko, Who Has the D? (HBR, 2006)"
+    },
+    {
+      "id": "ldr-07",
+      "kind": "fact",
+      "prompt": "Tuckman's stages of team development.",
+      "answer": "Forming, storming, norming, performing, plus adjourning, added in 1977.",
+      "why": "Storming is normal, not a sign the team is failing. A team skips it only by suppressing conflict.",
+      "source": "Tuckman (1965); Tuckman & Jensen (1977)"
+    },
+    {
+      "id": "ldr-08",
+      "kind": "concept",
+      "prompt": "What is Chesterton's fence, and how does it apply to legacy rules and systems?",
+      "answer": "Don't remove a fence until you know why it was put up. With an odd validation rule, a manual step or a strange table, find out what problem it solved. Then decide: the reason may be gone, or the fence may be holding up something you can't see.",
+      "points": [
+        "Understand why before removing",
+        "Legacy oddities often encode past failures",
+        "The reason may have expired, or may still hold",
+        "Then decide deliberately"
+      ],
+      "source": "G. K. Chesterton, The Thing (1929)"
+    },
+    {
+      "id": "ldr-09",
+      "kind": "concept",
+      "prompt": "'Disagree and commit': what does it require of you before and after the decision?",
+      "answer": "Before: state your disagreement fully and clearly while the decision is still open. After: commit to making the decision succeed. No relitigating, no quiet foot-dragging, no 'I told you so'. Reopen it only with new information, through the channel that made it.",
+      "points": [
+        "Voice disagreement fully before the decision",
+        "Then commit to making it work",
+        "No relitigating or passive resistance",
+        "Reopen only with new information"
+      ],
+      "source": "Intel management practice (Andy Grove); Bezos, 2016 shareholder letter"
+    },
+    {
+      "id": "ldr-10",
+      "kind": "judgment",
+      "prompt": "Your sponsor wants a visible win in 90 days, but the foundational work will take a year. How do you handle it?",
+      "answer": "Don't choose between them. Pick a thin end-to-end slice on a high-visibility use case that also delivers one reusable piece of the foundation. Make foundation progress visible with a few honest metrics. Set expectations explicitly with a roadmap that shows what the win does and doesn't prove. Avoid one-off hacks that create debt, and raise risks early rather than at the deadline.",
+      "points": [
+        "A thin end-to-end slice that also builds foundation",
+        "Choose a high-visibility use case",
+        "Make foundation progress visible",
+        "Explicit roadmap and expectations",
+        "Avoid one-off hacks; surface risks early"
+      ],
+      "source": "Synthesis: Kotter (short-term wins); product practice"
+    }
+  ]
+}

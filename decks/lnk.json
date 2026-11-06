@@ -2,7 +2,7 @@
   "deck": "lnk",
   "code": "LNK",
   "title": "Record linkage",
-  "blurb": "Fellegi-Sunter, blocking and thresholds: the math behind matching people, parcels and addresses across systems.",
+  "blurb": "Fellegi-Sunter, blocking and thresholds: the math behind matching people, places and organizations across systems.",
   "cards": [
     {
       "id": "lnk-01",
@@ -58,8 +58,8 @@
     {
       "id": "lnk-06",
       "kind": "judgment",
-      "prompt": "You are linking people between a city housing program and a county services dataset. How do you set match thresholds?",
-      "answer": "Use two thresholds: auto-link above the upper one, reject below the lower one, and send the band between them to clerical review. Set them from what each error costs in this use. A false merge, which combines two people's histories, usually does more harm here (wrong eligibility, privacy exposure) than a missed link. Estimate precision and recall on a labeled sample, size the review band to the staff who will work it, and monitor for drift.",
+      "prompt": "You are linking people between two organizations' client datasets to coordinate services. How do you set match thresholds?",
+      "answer": "Use two thresholds: auto-link above the upper one, reject below the lower one, and send the band between them to clerical review. Set them from what each error costs in this use. A false merge, which combines two people's histories, usually does more harm in service settings (wrong eligibility, privacy exposure) than a missed link. Estimate precision and recall on a labeled sample, size the review band to the staff who will work it, and monitor for drift.",
       "points": [
         "Two thresholds with a clerical-review band",
         "Set from the asymmetric costs of false merges vs missed links",
@@ -81,6 +81,19 @@
         "Conflates households with individuals"
       ],
       "source": "General"
+    },
+    {
+      "id": "lnk-08",
+      "kind": "concept",
+      "prompt": "A new matching method raises the match rate from 82% to 95%. Why isn't that evidence it's better?",
+      "answer": "Match rate counts how many records got a match, not whether the matches are right. Loosening any matcher raises the rate by adding false matches. Judge it by precision and recall against a labeled sample, and report both alongside the rate.",
+      "points": [
+        "Match rate is not match accuracy",
+        "Looser matching inflates the rate with false matches",
+        "Measure precision and recall on labeled pairs",
+        "Report both, not the rate alone"
+      ],
+      "source": "Christen, Data Matching (2012)"
     }
   ]
 }

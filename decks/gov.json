@@ -1,14 +1,14 @@
 {
   "deck": "gov",
   "code": "GOV",
-  "title": "Governance & stewardship",
-  "blurb": "Roles, operating models and the vocabulary you need to chair a governance committee without hand-waving.",
+  "title": "Data governance",
+  "blurb": "Roles, operating models, definitions and quality: the vocabulary and moves for running governance without hand-waving.",
   "cards": [
     {
       "id": "gov-01",
       "kind": "concept",
       "prompt": "Owner, steward, custodian. Who is accountable, who is responsible, and who holds the keys?",
-      "answer": "Owner: accountable for the data asset. Approves definitions, access and quality targets. Usually a department leader. Steward: responsible day to day for definitions, quality rules, metadata and issue triage, acting for the owner. A subject-matter expert. Custodian: technical custody. Storage, security controls, backups, implementing the rules. Usually IT or a DBA.",
+      "answer": "Owner: accountable for the data asset. Approves definitions, access and quality targets. Usually a business leader. Steward: responsible day to day for definitions, quality rules, metadata and issue triage, acting for the owner. A subject-matter expert. Custodian: technical custody. Storage, security controls, backups, implementing the rules. Usually IT or a DBA.",
       "points": [
         "Owner = accountability and decision rights, one per asset",
         "Steward = day-to-day responsibility for meaning and quality",
@@ -33,35 +33,20 @@
       "points": [
         "Recognize existing behavior rather than assign new duties",
         "Anyone who defines, produces or uses data already has a stewardship relationship to it",
-        "Lower adoption cost, which matters where staff are stretched"
+        "Lower adoption cost, which matters where people are stretched"
       ],
       "source": "Robert S. Seiner, Non-Invasive Data Governance (2014)"
     },
     {
       "id": "gov-04",
       "kind": "fact",
-      "prompt": "Glossary, dictionary or catalog: which one says what 'active address' means to the business?",
-      "answer": "The business glossary.",
-      "why": "Dictionary: technical, field-level descriptions (names, types, allowed values). Catalog: a searchable inventory of data assets with owners, metadata and lineage, linking glossary terms to physical columns.",
-      "source": "DAMA-DMBOK2, ch. 12 (Metadata Management)"
-    },
-    {
-      "id": "gov-05",
-      "kind": "fact",
-      "prompt": "DMBOK's three kinds of metadata, plus an example of the one people forget.",
-      "answer": "Business, technical, operational. Operational is the forgotten one: job run times, refresh timestamps, row counts, error and access logs.",
-      "source": "DAMA-DMBOK2, ch. 12"
-    },
-    {
-      "id": "gov-06",
-      "kind": "fact",
-      "prompt": "A record has ZIP 14620 for an address that is actually in 14607. Which quality dimension failed: validity or accuracy?",
-      "answer": "Accuracy. 14620 is a valid ZIP, so it passes the domain rule, but it doesn't match reality.",
-      "why": "Validity = conforms to format and domain rules. Accuracy = matches the real-world thing. Valid data can still be inaccurate, so a validation rule can't catch this error.",
+      "prompt": "A customer record has a real, correctly formatted postal code, but it belongs to a different town than the one the customer lives in. Which quality dimension failed: validity or accuracy?",
+      "answer": "Accuracy. The code passes the format and domain rules, so it is valid, but it doesn't match reality.",
+      "why": "Validity = conforms to format and domain rules. Accuracy = matches the real-world thing. A validation rule can't catch an accuracy error; that takes a reference source or verification.",
       "source": "DAMA UK, The Six Primary Dimensions for Data Quality Assessment (2013)"
     },
     {
-      "id": "gov-07",
+      "id": "gov-05",
       "kind": "fact",
       "prompt": "Name the six DAMA UK data quality dimensions.",
       "answer": "Completeness, uniqueness, timeliness, validity, accuracy, consistency.",
@@ -69,64 +54,86 @@
       "source": "DAMA UK (2013)"
     },
     {
-      "id": "gov-08",
+      "id": "gov-06",
       "kind": "concept",
       "prompt": "What is a critical data element, and why does governance start there?",
-      "answer": "A data element whose quality materially affects key decisions, operations, or legal or regulatory reporting. You can't govern everything at once. CDEs focus definitions, quality rules and stewardship where errors cost the most.",
+      "answer": "A data element whose quality materially affects key decisions, operations, or legal and regulatory obligations. You can't govern everything at once. CDEs focus definitions, quality rules and stewardship where errors cost the most.",
       "points": [
-        "Defined by consequence of error, not by volume",
-        "Gives the committee a finite, prioritized scope",
-        "Quality rules and owners get attached to CDEs first"
+        "Defined by the consequence of error, not by volume",
+        "Gives governance a finite, prioritized scope",
+        "Owners and quality rules get attached to CDEs first"
       ],
       "source": "Common practice; DAMA-DMBOK2 ch. 13 (Data Quality)"
     },
     {
-      "id": "gov-09",
+      "id": "gov-07",
       "kind": "concept",
-      "prompt": "Centralized, decentralized or federated: which governance operating model fits a city with a small central data office, and what does it look like?",
-      "answer": "Federated (hub and spoke). The central office sets standards, policy and tools and convenes people. Departments keep ownership and do the work through local stewards. A governance committee connects the hub to the spokes.",
+      "prompt": "Centralized, decentralized or federated: which governance operating model fits an organization with a small central data office, and what does it look like?",
+      "answer": "Federated (hub and spoke). The central office sets standards, policy and tools and convenes people. Business units keep ownership and do the work through local stewards. A council or committee connects the hub to the spokes.",
       "points": [
         "Central office: standards, policy, tools, convening",
-        "Departments own their data and execute",
-        "A committee or community links hub and spokes",
+        "Business units own their data and execute",
+        "A council or community links hub and spokes",
         "Pure centralization doesn't scale with a small office; pure decentralization fragments definitions"
       ],
       "source": "DAMA-DMBOK2, ch. 3"
     },
     {
-      "id": "gov-10",
+      "id": "gov-08",
       "kind": "judgment",
-      "prompt": "A department head says: 'We don't have time to name a data steward.' You need their permit data governed. What do you propose?",
-      "answer": "Someone already answers questions about the permit data, so name that person and formalize what they already do rather than adding a new job. Shrink the ask to a handful of critical fields and an hour or two a month. Tie it to a pain they feel, such as fewer ad hoc requests or cleaner numbers at budget time. Start with one visible use case, and go through the sponsor or committee only if this stalls.",
+      "prompt": "A department head says: 'We don't have time to name a data steward.' You need their core operational data governed. What do you propose?",
+      "answer": "Someone already answers questions about that data, so name that person and formalize what they already do rather than adding a new job. Shrink the ask to a handful of critical fields and an hour or two a month. Tie it to a pain they feel, such as fewer ad hoc requests or numbers they can defend. Start with one visible use case, and go through the sponsor or council only if this stalls.",
       "points": [
         "Reframe as recognizing an existing role (non-invasive)",
         "Shrink the ask: a few critical data elements, time-boxed",
-        "Show what they get back (fewer requests, better numbers at budget time)",
+        "Show what they get back (fewer requests, defensible numbers)",
         "Start from one painful, visible use case",
-        "Escalate through the executive sponsor or committee only if needed"
+        "Escalate through the executive sponsor or council only if needed"
       ],
       "source": "Synthesis: Seiner; DMBOK2 ch. 3"
     },
     {
-      "id": "gov-11",
+      "id": "gov-09",
       "kind": "fact",
       "prompt": "RACI: what do the letters stand for, and what is the one hard rule?",
       "answer": "Responsible, Accountable, Consulted, Informed. Exactly one A per task or decision.",
       "source": "Standard responsibility-assignment matrix"
     },
     {
+      "id": "gov-10",
+      "kind": "fact",
+      "prompt": "Dehghani's four principles of data mesh.",
+      "answer": "Domain-oriented ownership; data as a product; a self-serve data platform; federated computational governance.",
+      "why": "The governance principle: global standards are agreed jointly and enforced automatically by the platform, while domains own their data products.",
+      "source": "Zhamak Dehghani, Data Mesh (2022)"
+    },
+    {
+      "id": "gov-11",
+      "kind": "concept",
+      "prompt": "Policy, standard, procedure, guideline: what does each layer of a governance document set say?",
+      "answer": "A policy states what must be true and why, at a level leadership approves and rarely changes. A standard makes it specific and checkable (naming rules, required metadata fields, retention periods). A procedure is the step-by-step how. A guideline is recommended practice, not mandatory.",
+      "points": [
+        "Policy: intent and mandate, approved by leadership, stable",
+        "Standard: specific, measurable requirements",
+        "Procedure: steps to comply",
+        "Guideline: advice, not mandatory",
+        "Keeping detail out of policy means the details can change without re-approval"
+      ],
+      "source": "Common governance practice"
+    },
+    {
       "id": "gov-12",
       "kind": "judgment",
-      "prompt": "You have a new data catalog and can't document everything. How do you choose what goes in first, and how will you know it's working?",
-      "answer": "Start from the high-stakes uses: budget, performance reporting, public dashboards. Catalog the assets that feed them in depth, with owners, CDE definitions and lineage. Go deep on a few assets rather than shallow on many. Measure use, not entries: searches, views, and questions answered without emailing someone. Iterate with the stewards and retire stale entries.",
+      "prompt": "Two departments define the same metric differently (say, 'active customer'), and each definition is right for its own purpose. What should governance do?",
+      "answer": "Don't force a single definition when the purposes really differ. Give each a distinct qualified name, document both in the glossary with an owner and a derivation, and say which one is authoritative for cross-organization reporting. Only push for convergence where a shared number is needed, and make sure every report states which definition it uses.",
       "points": [
-        "Prioritize by use case and stakes, not by system",
-        "Depth on a few assets beats shallow coverage of many",
-        "Attach owners, definitions and lineage to what you load",
-        "Measure adoption: searches, views, questions answered, time to find data",
-        "Iterate with stewards; prune stale entries"
+        "Different purposes can justify different definitions",
+        "Disambiguate with distinct, qualified names",
+        "Document each with owner and derivation",
+        "Designate one as authoritative for shared reporting",
+        "Converge only where a shared number is needed; reports name their definition"
       ],
-      "source": "Synthesis"
+      "source": "Synthesis: DMBOK2 ch. 3 and 12"
     }
   ]
 }
