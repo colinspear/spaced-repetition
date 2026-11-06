@@ -33,6 +33,8 @@ The count is in cards, not reviews: each card today is either done, to go, or co
 
 You can skip typing with **Skip to the answer** and rate yourself, for low-energy days.
 
+The in-app **Guide** tab is the user guide. Its chart and table come from `simulateCurve` in `src/engine.js`, which runs the real scheduler on a card answered correctly at every due date, so the explanation can't drift from the code. Every graded card also has **Why this timing?**, which shows that card's own numbers: predicted recall today, stability after the review, and the target that set the gap.
+
 ## Where I departed from the literal suggestion, and why
 
 1. **No new algorithm invented.** FSRS is the strongest published scheduler on large benchmarks of real review data. A model-invented one would almost certainly be worse. "Custom" here means a domain layer plus fitting to your data. `src/fsrs.js` is a port of py-fsrs 6.3.2, checked step for step against the reference on 969 randomized reviews (`test/fsrs.parity.test.mjs`).

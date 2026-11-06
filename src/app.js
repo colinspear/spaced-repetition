@@ -4,7 +4,7 @@ import { State, DAY } from "./fsrs.js";
 import {
   mergeConfig, dayKey, blankMemory, isNew, isLearning, schedulerFor, buildQueue, nextCard, applyRating,
   previewIntervals, previewOutcome, fmtInterval, calibration, fitScale, forecast, currentR, isPersistentMiss, isLeech,
-  mastery, MASTERY,
+  mastery, MASTERY, simulateCurve, elapsedDays,
 } from "./engine.js";
 
 const DECKS = __DECKS__;
@@ -21,8 +21,8 @@ const RATING = { 1: "Again", 2: "Hard", 3: "Good", 4: "Easy" };
 const RATING_UI = { 1: "Didn't know", 2: "Partly", 3: "Knew it", 4: "Easy" };
 const VERDICT = { 1: "Not yet", 2: "Partly right", 3: "Right", 4: "Spot on" };
 const FINE_POINTER = typeof matchMedia === "function" && matchMedia("(hover: hover) and (pointer: fine)").matches;
-const VIEWS = ["review", "catalog", "add", "patterns", "tuning"];
-const VIEW_LABEL = { review: "Review", catalog: "Catalog", add: "Add", patterns: "Patterns", tuning: "Tuning" };
+const VIEWS = ["review", "catalog", "add", "patterns", "tuning", "guide"];
+const VIEW_LABEL = { review: "Review", catalog: "Catalog", add: "Add", patterns: "Misses", tuning: "Tuning", guide: "Guide" };
 
 const S = {
   mode: "loading", // loading | db | local | unreachable
@@ -493,7 +493,8 @@ function render() {
     return;
   }
   const v = S.view;
-  root.innerHTML = `${nav()}<div id="status-slot">${statusLine()}</div><main id="view">${{ review: viewReview, catalog: viewCatalog, add: viewAdd, patterns: viewPatterns, tuning: viewTuning }[v]()}</main>`;
+  root.innerHTML = `${nav()}<div id="status-slot">${statusLine()}</div><main id="view">${{ review: viewReview, catalog: viewCatalog, add: viewAdd, patterns: viewPatterns, tuning: viewTuning, guide: viewGuide }[v]()}</main>`;
+  if (v === "guide") drawCurve();
   const ta = document.getElementById("answer-box");
   if (ta && S.session?.focusBox) { ta.focus(); S.session.focusBox = false; }
 }
@@ -527,7 +528,7 @@ ${sess.phase === "front" ? frontControls(c, busyGrade) : backSide(c, m)}
 </article>`;
   const p = progress();
   return `${front}<div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="${p.total}" aria-valuenow="${p.done}"><span style="width:${p.total ? (p.done / p.total) * 100 : 0}%"></span></div>
-<p class="hint">${p.done} of ${p.total} cards done today${sess.from === "learning" || sess.from === "ahead" ? " · this one is back for another try" : isNew(m) ? " · new card" : ""}</p>`;
+<p class="hint">${p.done} of ${p.total} cards done today${sess.from === "learning" || sess.from === "ahead" ? " · this one is back for another try" : isNew(m) ? " · new card" : ""}${totalReviews() < 40 ? ` · <a href="#guide">How this works</a>` : ""}</p>`;
 }
 function frontControls(c, busy) {
   const sess = S.session;
@@ -560,8 +561,36 @@ ${x ? explanationBlock(c, x) : ""}
 <p class="source">Source: ${esc(c.source || "—")}</p>
 ${cardActions(c, m, x, missed, busyX)}${errX ? `<p class="err">${esc(errX)}</p>` : ""}
 ${S.cat.flagFor === c.id ? flagForm(c.id) : ""}
+${whyTiming(c, m, g?.rating && !sess.override ? g.rating : null)}
 </div>
 ${rateBar(c, m, g, prev)}`;
+}
+const totalReviews = () => [...S.logs.values()].reduce((n, items) => n + items.length, 0);
+function plainDays(d) {
+  if (d < 1) return "less than a day";
+  if (d < 13.5) { const n = Math.round(d); return `${n} day${n === 1 ? "" : "s"}`; }
+  if (d < 60) return `${Math.round(d / 7)} weeks`;
+  if (d < 700) return `${Math.round(d / 30.4)} months`;
+  return `${(d / 365).toFixed(1).replace(/\.0$/, "")} years`;
+}
+const plainAgo = (n) => (n <= 0 ? "earlier today" : n === 1 ? "yesterday" : `${n} days ago`);
+const KIND_NAME = { fact: "fact", concept: "concept", judgment: "scenario" };
+function whyTiming(c, m, r) {
+  const link = `<p><a href="#guide">How the scheduler works</a></p>`;
+  if (!r) {
+    return `<details class="why-timing"><summary>What do these buttons do?</summary><p>Each button shows when the card would come back. Pick <b>Knew it</b> if you got it with some effort, <b>Easy</b> only if it was instant, <b>Partly</b> if you had part of it, and <b>Didn't know</b> if you missed it. Higher ratings mean longer gaps.</p>${link}</details>`;
+  }
+  const now = Date.now();
+  const out = previewOutcome({ mem: m, card: c, now, config: S.config, rating: r });
+  const k = S.config.kinds[c.kind] || S.config.kinds.fact;
+  const before = isNew(m)
+    ? "This is your first time answering this card."
+    : `You last answered it ${plainAgo(elapsedDays(m, now, S.config.rolloverHour))}, and the scheduler put your chance of recalling it today at ${pct(currentR(m, now, S.config, S.sched))}.`;
+  const verdict = `Claude's verdict, ${VERDICT[r]}, counts as "${RATING_UI[r]}".`;
+  const after = isLearning(out.mem)
+    ? `It isn't solid yet, so it comes back in ${fmtInterval(out.intervalMs)} for one more try. A correct answer then moves it out to days.`
+    : `After this review the scheduler estimates your recall stays above 90% for about ${plainDays(out.mem.stability)}. Your target for ${KIND_NAME[c.kind] || "fact"} cards is ${pct(k.retention)}, so it comes back in ${plainDays(out.intervalMs / DAY)}, when your recall is predicted to reach that target.`;
+  return `<details class="why-timing"><summary>Why this timing?</summary><p>${esc(before)} ${esc(verdict)} ${esc(after)}</p>${link}</details>`;
 }
 function cardActions(c, m, x, missed, busyX) {
   const can = claudeReady();
@@ -622,7 +651,7 @@ function doneScreen() {
 ${backlog ? `<p>${backlog} overdue cards are waiting beyond today's cap of ${S.config.reviewsPerDay}. They lose little by waiting: the ones decaying fastest are shown first each day. New cards stay paused until the backlog clears.</p>` : ""}
 <p class="mono strip">${f.map((n, i) => `<span><small>${i === 0 ? "today" : i === 1 ? "tmrw" : "+" + i}</small>${n}</span>`).join("")}</p>
 <p class="muted">${masterySummary(S.cards)}. ${left ? `${S.config.newPerDay} new cards are introduced per day.` : ""}</p>
-<div class="row"><a class="btn" href="#add">Turn a note into cards</a><a class="btn ghost" href="#patterns">See what you keep missing</a></div></section>`;
+<div class="row"><a class="btn" href="#add">Turn a note into cards</a><a class="btn ghost" href="#patterns">See what you keep missing</a><a class="btn ghost" href="#guide">How it works</a></div></section>`;
 }
 
 function masterySummary(cards) {
@@ -727,7 +756,7 @@ function viewTuning() {
   const reviewN = logs.filter((l) => l.st === State.Review).length;
   const k = fit.k;
   return `<section class="panel"><h2>How well the scheduler knows you</h2>
-<p class="muted">The scheduler predicts how likely you are to recall each card when it comes due. Below, its predictions are compared with what actually happened. Counts only include reviews of cards already past the learning stage.</p>
+<p class="muted">The scheduler predicts how likely you are to recall each card when it comes due. Below, its predictions are compared with what actually happened. Counts only include reviews of cards already past the learning stage. <a href="#guide">The Guide</a> explains the scheduler in plain terms.</p>
 <div class="scroll"><table><thead><tr><th>Predicted recall</th><th>Reviews</th><th>Predicted</th><th>Actual</th></tr></thead><tbody>${cal.map((b) => `<tr><td class="mono">${pct(b.lo)}–${pct(b.hi)}</td><td class="num">${b.n}</td><td class="num">${pct(b.predicted)}</td><td class="num">${pct(b.actual)}</td></tr>`).join("")}</tbody></table></div>
 ${k == null ? `<p>Personal fit needs 30 review-stage reviews. You have ${fit.n}.</p>`
     : `<p>Best-fit memory multiplier: <b class="mono">${k.toFixed(2)}</b> (95% interval ${fit.lo.toFixed(2)}–${fit.hi.toFixed(2)}, ${fit.n} reviews). ${k < 1 ? "You forget a little faster than the default model assumes." : "You remember a little longer than the default model assumes."} Log loss ${fit.logLossDefault.toFixed(3)} → ${fit.logLossFitted.toFixed(3)}.</p>
@@ -748,6 +777,183 @@ ${cfg.intervalScale !== 1 ? `<p>Currently applied: intervals × <span class="mon
 <section class="panel"><h2>Your data</h2><p class="muted">${S.mode === "db" ? "Reviews are saved to this artifact's private store. Only you can read or change them." : "Saved in this browser only. Export regularly."} ${logs.length} reviews, ${S.custom.size} added cards, ${S.flags.length} flags. Build ${esc(BUILD)}.</p>
 <div class="row small"><button type="button" class="btn" data-act="export">Export JSON</button></div><div id="export-slot"></div></section>`;
 }
+// ---------- guide ----------
+let curveCache = null, curveRO = null;
+function guideCurve() {
+  const key = JSON.stringify([S.config.parameters, S.config.kinds.fact, S.config.maximumInterval, S.config.intervalScale]);
+  if (curveCache?.key !== key) curveCache = { key, data: simulateCurve({ config: S.config, kind: "fact", days: 240 }) };
+  return curveCache.data;
+}
+function viewGuide() {
+  const cfg = S.config, c = guideCurve();
+  const revs = c.reviews.slice(1);
+  const t = (k) => pct(cfg.kinds[k].retention);
+  const gaps = revs.map((r) => plainDays(r.gap));
+  const label = `Line chart of the chance you'd recall a fact over ${c.days} days. With reviews, recall stays between ${pct(Math.min(...c.withR))} and 100%, with reviews on days ${revs.map((r) => r.day).join(", ")}. Without reviews, it falls to ${pct(c.without[c.days])} by day ${c.days}.`;
+  return `<section class="panel guide"><h2>How Card Catalog works</h2>
+<p class="muted">A two-minute read. The short version: answer, let Claude judge it, press Next, and come back most days.</p>
+
+<h3>The daily routine</h3>
+<ol>
+<li>Open <b>Review</b> and type an answer to the question, even a rough one.</li>
+<li>Press <b>Check my answer</b>. Claude compares it with the reference answer and the key points.</li>
+<li>Read the verdict and the answer. If it didn't click, press <b>Go deeper</b> and ask follow-up questions.</li>
+<li>Press <b>Next</b>. The card leaves today's pile and comes back when the scheduler says.</li>
+<li>Stop when nothing is left. Most days take 5 to 10 minutes. Skipped days are fine.</li>
+</ol>
+
+<h3>How the scheduler decides when you see a card</h3>
+<p>Memory fades on a predictable curve, and each successful recall makes the next fade slower. The scheduler (FSRS, the open algorithm Anki also offers) keeps two estimates for every card:</p>
+<ul>
+<li><b>Stability</b>: how many days until your chance of recalling the card falls to 90%. A new card you get right starts at about ${plainDays(c.reviews[0].stability)}.</li>
+<li><b>Difficulty</b>: how hard the card is for you. Stability grows more slowly on difficult cards.</li>
+</ul>
+<p>A card comes due when your predicted chance of recalling it falls to its target: ${t("fact")} for facts, ${t("concept")} for concepts, ${t("judgment")} for scenarios. That's the useful moment to review: recall takes some effort, which is what strengthens the memory, and you'll usually still get it right.</p>
+<p>Each correct answer multiplies stability, so the gaps grow fast. A fact you get right every time comes back after ${gaps.join(", then ")}. That's ${revs.length} reviews in ${Math.round(c.days / 30.4)} months. A miss cuts stability and brings the card back in 10 minutes, then again after a short gap.</p>
+
+<figure class="chart-card"><figcaption><p class="chart-title">Chance you'd recall a fact over ${Math.round(c.days / 30.4)} months</p>
+<div class="legend"><span><i class="key s1"></i>With reviews</span><span><i class="key s2"></i>Without reviews</span></div></figcaption>
+<div id="curve" class="curve" tabindex="0" role="img" aria-label="${esc(label)}"></div>
+<p class="muted">Each dot is a review. Recall had drifted down to about ${t("fact")}, and answering correctly restores it and slows the next fade. Hover or tap the chart, or focus it and use the arrow keys, to read values.</p></figure>
+<div class="scroll"><table><thead><tr><th>Review</th><th>Day</th><th>Gap</th><th>Recall then</th><th>Memory now lasts</th></tr></thead><tbody>
+<tr><td>First answer</td><td class="num">0</td><td class="num">–</td><td class="num">–</td><td class="num">${plainDays(c.reviews[0].stability)}</td></tr>
+${revs.map((r, i) => `<tr><td>${i + 1}</td><td class="num">${r.day}</td><td class="num">${plainDays(r.gap)}</td><td class="num">${pct(r.rBefore)}</td><td class="num">${plainDays(r.stability)}</td></tr>`).join("")}
+</tbody></table></div>
+<p class="muted">"Memory now lasts" is stability: days until recall is predicted to fall to 90%. Under each graded card, <b>Why this timing?</b> shows the same numbers for that card.</p>
+
+<h3>What Claude's verdict does</h3>
+<div class="scroll"><table><thead><tr><th>Verdict</th><th>Counts as</th><th>What happens</th></tr></thead><tbody>
+<tr><td>Not yet</td><td>Didn't know</td><td>Stability drops. The card comes back in 10 minutes for one more try.</td></tr>
+<tr><td>Partly right</td><td>Partly</td><td>A shorter gap than a full success, and the card counts as a little more difficult.</td></tr>
+<tr><td>Right</td><td>Knew it</td><td>Normal growth.</td></tr>
+<tr><td>Spot on</td><td>Easy</td><td>The longest gap.</td></tr>
+</tbody></table></div>
+<p>Claude judges how well you know it, and the scheduler turns that into when. Press <b>Change rating</b> if Claude misjudged; your choice is final.</p>
+
+<h3>Today's count</h3>
+<ul>
+<li><b>Done</b>: cards finished for today.</li>
+<li><b>To go</b>: cards due today that you haven't seen yet, plus today's new cards.</li>
+<li><b>Coming back</b>: cards you missed, waiting a few minutes for another try.</li>
+</ul>
+<p>Each day brings up to ${cfg.newPerDay} new cards and at most ${cfg.reviewsPerDay} reviews. After days off, overdue cards beyond that cap wait without penalty, and the ones fading fastest come first. New cards pause until the pile clears. Change these limits in Tuning.</p>
+
+<h3>Mastery</h3>
+<p>How long you'd likely still recall a card, from its stability: <b>learning</b> (days), <b>familiar</b> (up to 3 weeks), <b>solid</b> (up to 3 months), <b>mastered</b> (longer). Correct answers raise it and misses lower it. The Catalog shows mastery by deck.</p>
+
+<h3>Card kinds</h3>
+<ul>
+<li><b>fact</b>: a short answer. Target ${t("fact")}.</li>
+<li><b>concept</b>: explain an idea in a few sentences. Target ${t("concept")}.</li>
+<li><b>judgment</b>: a scenario where you decide what to do. Target ${t("judgment")}.</li>
+</ul>
+<p>Written answers take longer, so concept and judgment cards aim a little lower and come back less often. That gives up a little recall to save a lot of time.</p>
+
+<h3>Buttons on a card</h3>
+<dl>
+<dt>Go deeper</dt><dd>A longer explanation aimed at your answer. Ask follow-up questions under it. It's saved with the card.</dd>
+<dt>Why do I keep missing this?</dt><dd>Appears after a miss. Claude looks at all your attempts on the card and explains the specific confusion.</dd>
+<dt>Report a problem</dt><dd>The card is wrong, unclear or not useful. Claude fixes or retires reported cards when you ask it to review your learning.</dd>
+<dt>Stop showing</dt><dd>Takes the card out of your reviews. Bring it back from the Catalog.</dd>
+<dt>Undo</dt><dd>In the message after each card. It reverses your last rating.</dd>
+<dt>Skip to the answer</dt><dd>For days you'd rather not type: see the answer and rate yourself.</dd>
+</dl>
+
+<h3>The other tabs</h3>
+<dl>
+<dt>Catalog</dt><dd>Browse every card by deck, with mastery, saved deep dives and explanations.</dd>
+<dt>Add</dt><dd>Paste a note and Claude drafts cards from it, keeping the general principle. Or write a card yourself.</dd>
+<dt>Misses</dt><dd>Cards you keep missing, and a cross-card analysis of what's behind them.</dd>
+<dt>Tuning</dt><dd>Daily limits, and a check of how well the scheduler's predictions match your actual answers.</dd>
+</dl>
+
+<h3>How it adapts to you</h3>
+<p>At first the scheduler uses default settings fitted on a large public dataset of Anki reviews. Tuning compares its predictions with your answers, and after a few hundred reviews it can tell whether you forget faster or slower than the default. After about 500, ask Claude to refit the scheduler to you; the prompt is in Tuning.</p>
+</section>`;
+}
+function curveGeom(W, days) {
+  const H = 246, m = { l: 42, r: 14, t: 20, b: 42 };
+  const iw = Math.max(80, W - m.l - m.r), ih = H - m.t - m.b, lo = 0.4;
+  return { W, H, m, iw, ih, x: (d) => m.l + (d / days) * iw, y: (r) => m.t + (1 - (r - lo) / (1 - lo)) * ih, day: (px) => Math.round(((px - m.l) / iw) * days) };
+}
+function curveSVG(c, W) {
+  const { H, m, x, y } = curveGeom(W, c.days);
+  const f = (n) => n.toFixed(1);
+  const rev = new Map(c.reviews.slice(1).map((r) => [r.day, r]));
+  let pw = `M${f(x(0))},${f(y(1))}`;
+  for (let d = 1; d <= c.days; d++) {
+    const r = rev.get(d);
+    pw += r ? `L${f(x(d))},${f(y(r.rBefore))}L${f(x(d))},${f(y(1))}` : `L${f(x(d))},${f(y(c.withR[d]))}`;
+  }
+  const po = c.without.map((r, d) => `${d ? "L" : "M"}${f(x(d))},${f(y(r))}`).join("");
+  const grid = [0.5, 0.6, 0.7, 0.8, 0.9, 1].map((v) => `<line class="gl${Math.abs(v - c.target) < 1e-9 ? " target" : ""}" x1="${m.l}" x2="${W - m.r}" y1="${f(y(v))}" y2="${f(y(v))}"/><text class="ax" x="${m.l - 6}" y="${f(y(v) + 4)}" text-anchor="end">${Math.round(v * 100)}%</text>`).join("");
+  const ticks = [0, 60, 120, 180, 240].filter((d) => d <= c.days).map((d) => `<text class="ax" x="${f(x(d))}" y="${H - m.b + 16}" text-anchor="middle">${d}</text>`).join("");
+  const dots = c.reviews.slice(1).map((r) => `<circle class="dot" cx="${f(x(r.day))}" cy="${f(y(r.rBefore))}" r="4"/>`).join("");
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">${grid}${ticks}
+<text class="ax" x="${f(m.l + (W - m.l - m.r) / 2)}" y="${H - 6}" text-anchor="middle">days since you first answered the card</text>
+<text class="ax" x="${f(W - m.r)}" y="${f(y(c.target) + 14)}" text-anchor="end">target ${pct(c.target)}</text>
+<path class="ln s2" d="${po}"/><path class="ln s1" d="${pw}"/>${dots}
+<text class="dl" x="${f(W - m.r)}" y="${f(m.t - 7)}" text-anchor="end">With reviews</text>
+<text class="dl" x="${f(W - m.r)}" y="${f(y(c.without[c.days]) - 8)}" text-anchor="end">Without reviews</text>
+<line class="cross" x1="0" x2="0" y1="${m.t}" y2="${H - m.b}" visibility="hidden"/>
+<rect class="hit" x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="transparent"/></svg><div class="curve-tip" hidden></div>`;
+}
+function drawCurve() {
+  const host = document.getElementById("curve");
+  if (!host) return;
+  const c = guideCurve();
+  let w = 0;
+  const paint = () => {
+    w = host.clientWidth || 340;
+    host.innerHTML = curveSVG(c, w);
+    wireCurve(host, c, w);
+  };
+  paint();
+  curveRO?.disconnect();
+  if (typeof ResizeObserver === "function") {
+    curveRO = new ResizeObserver(() => { if (host.isConnected && Math.abs(host.clientWidth - w) > 4) paint(); });
+    curveRO.observe(host);
+  }
+}
+function wireCurve(host, c, W) {
+  const g = curveGeom(W, c.days);
+  const svg = host.querySelector("svg"), cross = svg.querySelector(".cross"), tip = host.querySelector(".curve-tip");
+  const rev = new Map(c.reviews.slice(1).map((r) => [r.day, r]));
+  let cur = 30;
+  const row = (cls, val, text) => {
+    const p = document.createElement("p"), k = document.createElement("i"), b = document.createElement("b"), s = document.createElement("span");
+    k.className = `key ${cls}`; b.textContent = val; s.textContent = text;
+    p.append(k, b, s);
+    return p;
+  };
+  const show = (d) => {
+    cur = Math.max(0, Math.min(c.days, d));
+    const X = g.x(cur);
+    cross.setAttribute("x1", X); cross.setAttribute("x2", X); cross.setAttribute("visibility", "visible");
+    const head = document.createElement("p");
+    head.className = "tip-h";
+    head.textContent = cur === 0 ? "Day 0, first answer" : `Day ${cur}`;
+    const r = rev.get(cur);
+    tip.replaceChildren(head, row("s1", r ? `${pct(r.rBefore)} → 100%` : pct(c.withR[cur]), r ? "With reviews (reviewed)" : "With reviews"), row("s2", pct(c.without[cur]), "Without reviews"));
+    tip.hidden = false;
+    const tw = tip.offsetWidth;
+    tip.style.left = `${X + 12 + tw <= W ? X + 12 : Math.max(0, X - 12 - tw)}px`;
+    tip.style.top = `${g.m.t}px`;
+  };
+  const hide = () => { cross.setAttribute("visibility", "hidden"); tip.hidden = true; };
+  const at = (e) => show(g.day(e.clientX - svg.getBoundingClientRect().left));
+  svg.addEventListener("pointermove", at);
+  svg.addEventListener("pointerdown", at);
+  svg.addEventListener("pointerleave", () => { if (document.activeElement !== host) hide(); });
+  host.onfocus = () => show(cur);
+  host.onblur = hide;
+  host.onkeydown = (e) => {
+    const step = e.shiftKey ? 30 : 1;
+    const to = { ArrowRight: cur + step, ArrowLeft: cur - step, Home: 0, End: c.days }[e.key];
+    if (to != null) { e.preventDefault(); show(to); }
+  };
+}
+
 const SESSION_PROMPT = `Review my learning in the Card Catalog artifact. Read its db (reviews, cards, flags, explanations, deepdives, custom, config/scheduler) with ArtifactData. Fix or retire flagged deck cards in decks/ and resolve the flags. If there are enough reviews, run tools/optimize.py and write the fitted parameters and per-kind retention to config/scheduler. Write what you found to insights/latest. Rebuild, run the tests, republish, and tell me what changed and why.`;
 
 // ---------- events ----------

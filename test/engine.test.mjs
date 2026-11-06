@@ -153,3 +153,15 @@ test("forecast counts due cards per study day", () => {
   assert.equal(f.reduce((a, b) => a + b, 0), 1);
   assert.equal(f[3], 1);
 });
+
+test("guide curve: gaps grow, recall stays near target with reviews, and fades without them", async () => {
+  const { simulateCurve } = await import("../src/engine.js");
+  const c = simulateCurve({ config: cfg(), kind: "fact", days: 240 });
+  const gaps = c.reviews.slice(1).map((r) => r.gap);
+  assert.ok(gaps.length >= 4, `gaps ${gaps}`);
+  for (let i = 1; i < gaps.length; i++) assert.ok(gaps[i] > gaps[i - 1], `gaps grow: ${gaps}`);
+  for (const r of c.reviews.slice(1)) assert.ok(r.rBefore > 0.87 && r.rBefore < 0.93, `reviewed near the 90% target: ${r.rBefore}`);
+  assert.ok(Math.min(...c.withR) > 0.87);
+  assert.ok(c.without[240] < 0.6, `without reviews: ${c.without[240]}`);
+  assert.equal(c.withR.length, 241);
+});

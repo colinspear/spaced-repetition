@@ -21,6 +21,8 @@
   --hard-bg: #faefdb;
   --good-bg: #e2f1e7;
   --easy-bg: #e0edf7;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
   --shadow: 0 1px 0 rgba(23, 33, 43, 0.06), 0 10px 26px -14px rgba(23, 33, 43, 0.35);
   --font-ui: "Public Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-card: "Source Serif 4", Georgia, "Times New Roman", serif;
@@ -33,6 +35,7 @@
     --rule-red: #e0675e; --rule-blue: #283544; --accent: #74b4e8; --accent-ink: #0c1620;
     --again: #f2877c; --hard: #e3ad55; --good: #66c690; --easy: #74b4e8;
     --again-bg: #3a1f1d; --hard-bg: #382c17; --good-bg: #173123; --easy-bg: #162b3d;
+    --series-1: #3987e5; --series-2: #d95926;
     --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 12px 28px -14px rgba(0, 0, 0, 0.7);
     color-scheme: dark;
   }
@@ -43,6 +46,7 @@
   --rule-red: #e0675e; --rule-blue: #283544; --accent: #74b4e8; --accent-ink: #0c1620;
   --again: #f2877c; --hard: #e3ad55; --good: #66c690; --easy: #74b4e8;
   --again-bg: #3a1f1d; --hard-bg: #382c17; --good-bg: #173123; --easy-bg: #162b3d;
+  --series-1: #3987e5; --series-2: #d95926;
   --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 12px 28px -14px rgba(0, 0, 0, 0.7);
   color-scheme: dark;
 }
@@ -251,3 +255,41 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var
   .rate { padding: 8px; gap: 5px; }
   .rate-btn { font-size: 13.5px; }
 }
+
+/* guide */
+.guide h3 { font-size: 15px; margin: 10px 0 0; }
+.guide p { max-width: 65ch; }
+.guide ol, .guide ul { margin: 0; padding-left: 22px; display: grid; gap: 5px; max-width: 65ch; }
+.guide dl { margin: 0; display: grid; gap: 2px; max-width: 65ch; }
+.guide dt { font-weight: 700; margin-top: 6px; }
+.guide dd { margin: 0; color: var(--ink-2); }
+.chart-card { margin: 0; display: grid; gap: 8px; padding: 12px 14px; background: var(--stock-2); border-radius: 3px; min-width: 0; }
+.chart-card figcaption { display: grid; gap: 4px; }
+.chart-title { font-weight: 700; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.key { display: inline-block; width: 16px; height: 0; border-top: 2px solid var(--ink-3); border-radius: 1px; flex: none; }
+.key.s1 { border-color: var(--series-1); }
+.key.s2 { border-color: var(--series-2); }
+.curve { position: relative; min-height: 246px; border-radius: 3px; }
+.curve svg { display: block; overflow: visible; touch-action: pan-y; }
+.curve .gl { stroke: var(--line); stroke-width: 1; }
+.curve .gl.target { stroke: var(--ink-3); }
+.curve .ax { font: 11px var(--font-mono); fill: var(--ink-3); }
+.curve .dl { font: 600 12px var(--font-ui); fill: var(--ink-2); }
+.curve .ln { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.curve .ln.s1 { stroke: var(--series-1); }
+.curve .ln.s2 { stroke: var(--series-2); }
+.curve .dot { fill: var(--series-1); stroke: var(--stock-2); stroke-width: 2; }
+.curve .cross { stroke: var(--ink-2); stroke-width: 1; }
+.curve-tip {
+  position: absolute; display: grid; gap: 2px; min-width: 170px; padding: 7px 10px; pointer-events: none;
+  background: var(--stock); color: var(--ink); border-radius: 3px; box-shadow: var(--shadow); font-size: 12.5px; z-index: 2;
+}
+.curve-tip p { display: flex; align-items: center; gap: 6px; margin: 0; }
+.curve-tip b { font-variant-numeric: tabular-nums; }
+.curve-tip span { color: var(--ink-2); }
+.tip-h { font-weight: 600; color: var(--ink-2); }
+.why-timing summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: 13.5px; }
+.why-timing p { margin-top: 6px; font-size: 14px; color: var(--ink-2); max-width: 65ch; }
+@media (max-width: 420px) { .tab { padding: 5px 7px; font-size: 12.5px; } }

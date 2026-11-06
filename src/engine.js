@@ -321,5 +321,35 @@ export function forecast({ cards, mem, now, config, days = 14 }) {
   return out;
 }
 
+/**
+ * What the scheduler does to one card answered correctly at every due date, plus the same
+ * card never reviewed again. Drives the Guide's chart, so the explanation can't drift from the code.
+ */
+export function simulateCurve({ config, kind = "fact", days = 240 }) {
+  const sched = schedulerFor(config, { fuzz: false });
+  const card = { id: "demo", kind };
+  const t0 = Date.UTC(2026, 0, 5, 12);
+  let { mem } = applyRating({ mem: undefined, card, rating: 3, now: t0, config, sched });
+  while (isLearning(mem)) mem = applyRating({ mem, card, rating: 3, now: mem.due, config, sched }).mem;
+  const s0 = mem.stability;
+  const reviews = [{ day: 0, gap: 0, rBefore: null, stability: s0 }];
+  for (let last = 0; ; ) {
+    const gap = Math.max(1, Math.round((mem.due - mem.lastReview) / DAY));
+    const day = last + gap;
+    if (day > days) break;
+    const rBefore = sched.retrievability(mem.stability, gap);
+    mem = applyRating({ mem, card, rating: 3, now: t0 + day * DAY, config, sched }).mem;
+    reviews.push({ day, gap, rBefore, stability: mem.stability });
+    last = day;
+  }
+  const withR = [], without = [];
+  for (let d = 0, k = 0; d <= days; d++) {
+    while (k + 1 < reviews.length && reviews[k + 1].day <= d) k++;
+    withR.push(sched.retrievability(reviews[k].stability, d - reviews[k].day));
+    without.push(sched.retrievability(s0, d));
+  }
+  return { days, reviews, withR, without, target: config.kinds[kind]?.retention ?? 0.9 };
+}
+
 export const isPersistentMiss = (m) => !!m && m.agains >= 2;
 export const isLeech = (m) => !!m && m.lapses >= 4;

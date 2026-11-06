@@ -96,6 +96,9 @@ await phone.fill("#answer-box", "The business glossary");
 await phone.click('[data-act="grade"]');
 await phone.waitForSelector(".rate-btn.next");
 assert.ok(await phone.evaluate(() => window.__mock.replies.some((r) => r.includes("[quick]"))), "facts graded on the quick tier");
+// Why this timing? explains the schedule for this card
+await phone.click(".why-timing summary");
+assert.match(await phone.textContent(".why-timing"), /first time answering this card[\s\S]*counts as "Knew it"/);
 // Go deeper streams, saves, and takes follow-ups
 await phone.click('[data-act="deep"]');
 await phone.waitForSelector(".deep .md-h");
@@ -138,6 +141,27 @@ await desk.fill("#set-new", "7");
 await desk.click('form[data-form="settings"] button[type="submit"]');
 assert.equal(await desk.evaluate(() => window.__mock.docs.get("config/scheduler").newPerDay), 7);
 if (shotsDir) { await desk.evaluate(() => (location.hash = "review")); await desk.waitForSelector(".index-card"); await desk.click('[data-act="reveal"]'); await desk.screenshot({ path: `${shotsDir}/desktop-dark.png` }); }
+
+// Guide: chart is drawn from the real scheduler, has a hover readout, and a table view
+const guide = await newPage({ viewport: { width: 390, height: 900 }, deviceScaleFactor: 1 });
+await guide.evaluate(() => (location.hash = "guide"));
+await guide.waitForSelector("#curve svg .ln.s1");
+assert.ok((await guide.getAttribute("#curve svg .ln.s1", "d")).length > 500);
+assert.equal(await guide.locator("#curve .dot").count(), await guide.locator(".guide table").first().locator("tbody tr").count() - 1);
+await guide.locator("#curve").scrollIntoViewIfNeeded();
+const box = await guide.locator("#curve svg").boundingBox();
+await guide.mouse.move(box.x + box.width * 0.5, box.y + 60);
+await guide.waitForSelector(".curve-tip:not([hidden])");
+assert.match(await guide.textContent(".curve-tip"), /Day \d+[\s\S]*With reviews[\s\S]*Without reviews/);
+assert.equal(await guide.locator(".tab").count(), 6);
+if (shotsDir) await guide.screenshot({ path: `${shotsDir}/guide-phone.png`, fullPage: true });
+const guideDark = await newPage({ viewport: { width: 1100, height: 900 }, colorScheme: "dark", deviceScaleFactor: 1 });
+await guideDark.evaluate(() => (location.hash = "guide"));
+await guideDark.waitForSelector("#curve svg");
+await guideDark.locator("#curve").scrollIntoViewIfNeeded();
+const b2 = await guideDark.locator("#curve svg").boundingBox();
+await guideDark.mouse.move(b2.x + b2.width * 0.3, b2.y + 80);
+if (shotsDir) await guideDark.screenshot({ path: `${shotsDir}/guide-dark.png` });
 
 // 3. Explain flow for a missed card (seeded memory with misses).
 const ex = await newPage({ viewport: { width: 800, height: 900 } }, true, () => {
