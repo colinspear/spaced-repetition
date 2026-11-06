@@ -7,7 +7,7 @@
     {
       "id": "gov-01",
       "kind": "concept",
-      "prompt": "Owner, steward, custodian. Who is accountable, who is responsible, and who holds the keys?",
+      "prompt": "Data owner, data steward, data custodian: which is accountable for the data, which looks after it day to day, and which runs the systems it lives in?",
       "answer": "Owner: accountable for the data asset. Approves definitions, access and quality targets. Usually a business leader. Steward: responsible day to day for definitions, quality rules, metadata and issue triage, acting for the owner. A subject-matter expert. Custodian: technical custody. Storage, security controls, backups, implementing the rules. Usually IT or a DBA.",
       "points": [
         "Owner = accountability and decision rights, one per asset",

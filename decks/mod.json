@@ -6,11 +6,16 @@
   "cards": [
     {
       "id": "mod-01",
-      "kind": "fact",
-      "prompt": "The one-line test for third normal form.",
-      "answer": "Every non-key attribute depends on the key, the whole key, and nothing but the key.",
-      "why": "'The key' is 1NF (rows identified by a key, no repeating groups). 'The whole key' is 2NF (no partial dependency on part of a composite key). 'Nothing but the key' is 3NF (no transitive dependency through another non-key attribute).",
-      "source": "William Kent, A Simple Guide to Five Normal Forms (1983)"
+      "kind": "concept",
+      "prompt": "Third normal form is often summed up as 'every non-key attribute depends on the key, the whole key, and nothing but the key.' What does each clause rule out?",
+      "answer": "'The key': every row is identified by a key, with no repeating groups (1NF). 'The whole key': no attribute depends on only part of a composite key, like a product name stored in an order-line table keyed by order and product (2NF). 'Nothing but the key': no attribute depends on another non-key attribute, like a customer's city stored on every order alongside the customer ID (3NF). Each violation stores a fact more than once, which invites update anomalies.",
+      "points": [
+        "The key: rows identified by a key, no repeating groups (1NF)",
+        "The whole key: no partial dependency on part of a composite key (2NF)",
+        "Nothing but the key: no transitive dependency through a non-key attribute (3NF)",
+        "Each violation stores a fact more than once, inviting anomalies"
+      ],
+      "source": "William Kent, A Simple Guide to Five Normal Forms in Relational Database Theory (1983)"
     },
     {
       "id": "mod-02",

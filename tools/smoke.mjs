@@ -24,9 +24,16 @@ function installMock() {
     }),
   };
   const replies = [];
-  const sample = async () => ({ text: "ok", truncated: false });
-  sample.json = async (prompt) => {
-    replies.push(prompt.slice(0, 60));
+  const sample = async (input, opts = {}) => {
+    const last = Array.isArray(input) ? input[input.length - 1].content : input;
+    replies.push(String(last).slice(0, 60));
+    const text = Array.isArray(input) ? "Because **each fact** lives in one place.\n- one\n- two" : "### Why it matters\nStoring a fact once means **one** place to change it.\n- Update anomaly\n- Insert anomaly";
+    opts.onText?.({ text, delta: text });
+    return { text, truncated: false };
+  };
+  sample.json = async (prompt, opts = {}) => {
+    replies.push(prompt.slice(0, 60) + (opts.modelTier ? ` [${opts.modelTier}]` : ""));
+    if (prompt.startsWith("Grade one") && prompt.includes("CARD (fact")) return { points: [{ i: 1, verdict: "hit", note: "" }], wrong: "", feedback: "Right.", rating: 3 };
     if (prompt.startsWith("Grade one")) return { points: [{ i: 1, verdict: "hit", note: "named accountability" }, { i: 2, verdict: "miss", note: "steward role missing" }], wrong: "", feedback: "You defined the owner but not the steward.", rating: 2 };
     if (prompt.startsWith("Turn this note")) return { cards: [{ kind: "fact", prompt: "Which tenant setting exposes DAX in scans?", answer: "Enhance admin API responses with DAX and mashup expressions." }, { kind: "concept", prompt: "Why stitch lineage by server identity?", answer: "Connectors name servers differently.", points: ["alias vs FQDN", "match identities"] }] };
     if (prompt.startsWith("A learner keeps missing")) return { diagnosis: "You swap steward and custodian.", explanation: "Steward = meaning; custodian = machinery.", hook: "Stewards argue about definitions; custodians argue about backups.", contrast_card: { prompt: "Who restores a deleted table?", answer: "The custodian." }, rewrite: null };
@@ -63,7 +70,12 @@ await phone.fill("#answer-box", "The owner is accountable for the asset and appr
 await phone.click('[data-act="grade"]');
 await phone.waitForSelector(".grade");
 assert.match(await phone.textContent(".grade"), /steward/);
-assert.equal(await phone.getAttribute(".rate-btn.suggested", "data-r"), "2");
+assert.match(await phone.textContent(".verdict"), /Partly right/);
+// Claude's rating is applied by default; overriding shows the four plain-language choices
+assert.equal(await phone.getAttribute(".rate-btn.next", "data-r"), "2");
+await phone.click('[data-act="override"]');
+assert.equal(await phone.locator(".rate-btn").count(), 4);
+assert.match(await phone.textContent(".rate-btn.r1"), /Didn't know/);
 await phone.click('.rate-btn.r1');
 await phone.waitForFunction(() => window.__mock.docs.has("cards/gov-01"));
 const day = await phone.evaluate(() => [...window.__mock.docs.keys()].find((k) => k.startsWith("reviews/")));
@@ -74,14 +86,28 @@ assert.equal(log.c, "gov-01"); assert.equal(log.r, 1); assert.equal(log.g, 2); a
 await phone.click("#toast-act");
 assert.equal((await phone.textContent(".callno")).trim(), "GOV·01");
 assert.equal(await phone.evaluate((k) => window.__mock.docs.get(k).items.length, day), 0);
+assert.equal(await phone.getAttribute(".rate-btn.next", "data-r"), "2", "undo restores Claude's rating");
+await phone.click('[data-act="override"]');
 await phone.click('.rate-btn.r1');
-// next card: concept, reveal without Claude, rate Good
-await phone.waitForSelector('[data-act="reveal"]');
+// next card is a fact: it gets graded too (quick tier), and Next accepts Claude's rating
+assert.equal((await phone.textContent(".callno")).trim(), "MET·01");
+assert.ok(await phone.isDisabled('[data-act="grade"]'), "grading needs an answer");
+await phone.fill("#answer-box", "The business glossary");
+await phone.click('[data-act="grade"]');
+await phone.waitForSelector(".rate-btn.next");
+assert.ok(await phone.evaluate(() => window.__mock.replies.some((r) => r.includes("[quick]"))), "facts graded on the quick tier");
+// Go deeper streams, saves, and takes follow-ups
+await phone.click('[data-act="deep"]');
+await phone.waitForSelector(".deep .md-h");
+assert.match(await phone.textContent(".deep"), /Why it matters/);
+await phone.fill('input[name="q"]', "Why not just one table?");
+await phone.click('form[data-form="followup"] button[type="submit"]');
+await phone.waitForSelector(".fq .q");
+assert.equal(await phone.evaluate(() => window.__mock.docs.get("deepdives/met-01").followups.length), 1);
+if (shotsDir) await phone.screenshot({ path: `${shotsDir}/phone-graded.png`, fullPage: true });
+await phone.click(".rate-btn.next");
+assert.match(await phone.textContent(".status"), /1 done · \d+ to go · 1 coming back/);
 await phone.click('[data-act="reveal"]');
-await phone.click('.rate-btn.r3');
-// third card is a fact (MOD-01): no answer box until "Type it"
-assert.equal(await phone.$("#answer-box"), null);
-await phone.keyboard.press("Space");
 await phone.waitForSelector(".rate");
 if (shotsDir) await phone.screenshot({ path: `${shotsDir}/phone-back.png`, fullPage: true });
 await phone.keyboard.press("3");

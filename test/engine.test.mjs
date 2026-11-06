@@ -78,14 +78,19 @@ test("interleave avoids back-to-back cards from the same deck when possible", ()
   for (let i = 1; i < out.length; i++) assert.notEqual(out[i].deck, out[i - 1].deck);
 });
 
-test("fact cards get same-session learning steps; judgment cards go straight to days", () => {
+test("a known card moves straight to days; a missed one comes back once in-session; judgment never repeats same day", () => {
   const config = cfg();
   const sched = schedulerFor(config, { fuzz: false });
   const fact = { id: "f", deck: "gov", kind: "fact" };
   const judg = { id: "j", deck: "gov", kind: "judgment" };
-  const f = applyRating({ mem: undefined, card: fact, rating: 3, now: T0, config, sched });
+  const knew = applyRating({ mem: undefined, card: fact, rating: 3, now: T0, config, sched });
+  assert.equal(knew.mem.state, State.Review);
+  assert.ok(knew.intervalMs >= DAY);
+  const f = applyRating({ mem: undefined, card: fact, rating: 1, now: T0, config, sched });
   assert.ok(isLearning(f.mem));
   assert.equal(f.intervalMs, 10 * MINUTE);
+  const back = applyRating({ mem: f.mem, card: fact, rating: 3, now: T0 + 10 * MINUTE, config, sched });
+  assert.equal(back.mem.state, State.Review, "one good retry graduates it");
   const j = applyRating({ mem: undefined, card: judg, rating: 3, now: T0, config, sched });
   assert.equal(j.mem.state, State.Review);
   assert.ok(j.intervalMs >= DAY);
@@ -93,6 +98,13 @@ test("fact cards get same-session learning steps; judgment cards go straight to 
   assert.equal(nextCard({ queue: [], cards: [fact], mem, now: T0 + 5 * MINUTE })?.id, "f", "learn-ahead finishes the session");
   assert.equal(nextCard({ queue: ["x"], cards: [fact], mem, now: T0 + 11 * MINUTE })?.id, "f", "due learning card jumps the queue");
   assert.equal(nextCard({ queue: ["x"], cards: [fact], mem, now: T0 + 2 * MINUTE })?.id, "x");
+});
+
+test("mastery bands follow stability", async () => {
+  const { mastery, MASTERY } = await import("../src/engine.js");
+  const at = (s) => MASTERY[mastery({ state: State.Review, step: null, stability: s, lastReview: T0 })];
+  assert.equal(MASTERY[mastery(undefined)], "New");
+  assert.deepEqual([at(1), at(5), at(30), at(200)], ["Learning", "Familiar", "Solid", "Mastered"]);
 });
 
 test("lower target retention for judgment cards yields longer intervals for the same memory", () => {

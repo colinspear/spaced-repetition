@@ -3,7 +3,8 @@
 import { State, DAY } from "./fsrs.js";
 import {
   mergeConfig, dayKey, blankMemory, isNew, isLearning, schedulerFor, buildQueue, nextCard, applyRating,
-  previewIntervals, fmtInterval, calibration, fitScale, forecast, currentR, isPersistentMiss, isLeech,
+  previewIntervals, previewOutcome, fmtInterval, calibration, fitScale, forecast, currentR, isPersistentMiss, isLeech,
+  mastery, MASTERY,
 } from "./engine.js";
 
 const DECKS = __DECKS__;
@@ -17,6 +18,9 @@ const LEARNER =
   "Wants terse, precise, non-sycophantic explanations; skip basics they already know.";
 const LS_KEY = "card-catalog:v1";
 const RATING = { 1: "Again", 2: "Hard", 3: "Good", 4: "Easy" };
+const RATING_UI = { 1: "Didn't know", 2: "Partly", 3: "Knew it", 4: "Easy" };
+const VERDICT = { 1: "Not yet", 2: "Partly right", 3: "Right", 4: "Spot on" };
+const FINE_POINTER = typeof matchMedia === "function" && matchMedia("(hover: hover) and (pointer: fine)").matches;
 const VIEWS = ["review", "catalog", "add", "patterns", "tuning"];
 const VIEW_LABEL = { review: "Review", catalog: "Catalog", add: "Add", patterns: "Patterns", tuning: "Tuning" };
 
@@ -26,6 +30,7 @@ const S = {
   config: mergeConfig(null), sched: null,
   cards: [], byId: new Map(),
   mem: new Map(), logs: new Map(), expl: new Map(), custom: new Map(), flags: [], insights: null,
+  deep: new Map(), streamText: new Map(), pendingQ: new Map(),
   view: "review", session: null, unsaved: false,
   cat: { deck: null, q: "", open: null, flagFor: null },
   add: { note: "", deck: "inb", drafts: [], busy: false, err: "", manual: { kind: "fact", prompt: "", answer: "", points: "" } },
@@ -99,7 +104,7 @@ function saveLocalSoon() {
   localTimer = setTimeout(() => {
     try {
       localStorage.setItem(LS_KEY, JSON.stringify({
-        mem: [...S.mem], logs: [...S.logs], expl: [...S.expl], custom: [...S.custom], flags: S.flags, config: S.config, insights: S.insights,
+        mem: [...S.mem], logs: [...S.logs], expl: [...S.expl], custom: [...S.custom], flags: S.flags, config: S.config, insights: S.insights, deep: [...S.deep],
       }));
     } catch { S.unsaved = true; renderStatus(); }
   }, 250);
@@ -111,12 +116,13 @@ function loadLocal() {
     const d = JSON.parse(raw);
     S.mem = new Map(d.mem || []); S.logs = new Map(d.logs || []); S.expl = new Map(d.expl || []);
     S.custom = new Map(d.custom || []); S.flags = d.flags || []; S.config = mergeConfig(d.config); S.insights = d.insights || null;
+    S.deep = new Map(d.deep || []);
   } catch { /* private window or blocked storage: start empty */ }
 }
 async function loadDb() {
   const col = async (name) => (await withTimeout(S.db.collection(name).get())).docs;
-  const [cards, reviews, expl, custom, flags, cfg, ins] = await Promise.all([
-    col("cards"), col("reviews"), col("explanations"), col("custom"), col("flags"),
+  const [cards, reviews, expl, custom, flags, deep, cfg, ins] = await Promise.all([
+    col("cards"), col("reviews"), col("explanations"), col("custom"), col("flags"), col("deepdives"),
     withTimeout(S.db.doc("config/scheduler").get()), withTimeout(S.db.doc("insights/latest").get()),
   ]);
   S.mem = new Map(cards.map((d) => [d.id, clone(d.data())]));
@@ -124,6 +130,7 @@ async function loadDb() {
   S.expl = new Map(expl.map((d) => [d.id, clone(d.data())]));
   S.custom = new Map(custom.map((d) => [d.id, clone(d.data())]));
   S.flags = flags.map((d) => ({ id: d.id, ...clone(d.data()) }));
+  S.deep = new Map(deep.map((d) => [d.id, clone(d.data())]));
   S.config = mergeConfig(cfg.exists ? clone(cfg.data()) : null);
   S.insights = ins.exists ? clone(ins.data()) : null;
 }
@@ -167,7 +174,7 @@ async function ask(key, prompt, opts = {}) {
     return null;
   } finally {
     S.busy.delete(key);
-    if (S.session?.current && key.endsWith(S.session.current)) S.session.waitMs += performance.now() - t;
+    if (S.session?.current && key.endsWith(S.session.current) && S.session.phase === "front") S.session.waitMs += performance.now() - t;
     render();
   }
 }
@@ -191,9 +198,13 @@ ${cardBlock(c)}
 LEARNER'S ANSWER:
 """${typed}"""
 
-Rating scale: 1 = missed the core idea or stated something false; 2 = core idea present but important points missing or shaky; 3 = core idea and most points; 4 = complete and precise.
+Your rating schedules the next review, so be accurate:
+1 = wrong, blank, or missing the core idea;
+2 = core idea right but important parts missing, vague, or hedged ("I think", "I'm guessing");
+3 = correct, with at most minor omissions;
+4 = complete, precise and confident.
 Reply with only JSON:
-{"points":[{"i":1,"verdict":"hit|partial|miss","note":"at most 12 words"}],"wrong":"a false claim in their answer, or empty string","feedback":"at most 50 words, second person, no praise padding","rating":3}
+{"points":[{"i":1,"verdict":"hit|partial|miss","note":"at most 12 words"}],"wrong":"a false claim in their answer, or empty string","feedback":"at most 50 words, second person: what was right, what was missing or wrong, and the one thing to remember. No praise padding.","rating":3}
 Include one entry in "points" per key point${c.points?.length ? "" : " (treat the reference answer as a single point)"}.`;
 }
 function explainPrompt(c, attempts) {
@@ -229,6 +240,88 @@ ${body}
 Reply with only JSON:
 {"summary":"at most 80 words","patterns":[{"title":"...","cards":["id"],"explanation":"at most 70 words"}],"confusions":[{"a":"id","b":"id","why":"..."}],"new_cards":[{"deck":"gov","kind":"fact","prompt":"...","answer":"...","points":[]}],"rewrite_or_retire":[{"id":"...","why":"..."}]}
 At most 4 patterns and 5 new cards. Concept and judgment cards need 2-5 points.`;
+}
+function deepPrompt(c, typed, grade) {
+  return `Give a deeper explanation of the idea behind this spaced-repetition card, for a learner who wants to understand it, not just recall it.
+Learner: ${LEARNER}
+
+${cardBlock(c)}${typed ? `\n\nTHEIR LATEST ANSWER:\n"""${clip(typed, 800)}"""` : ""}${grade?.feedback ? `\nGRADER'S NOTE: ${grade.feedback}` : ""}
+
+Cover, in order, only as far as useful:
+1. The core idea in plain words, and why it is true or why it matters: the mechanism, not a restatement.
+2. A concrete example that makes it click. Keep it generic: no real organizations, places, vendors or products unless the card is about one.
+3. The common confusion or misapplication and how to tell the difference${typed ? ", aimed at what their answer suggests they're missing" : ""}.
+4. When it doesn't apply, or the main caveat.
+5. One reliable source worth reading next, if you know one; otherwise skip this.
+At most 300 words. Plain Markdown: ### headings, - bullets, **bold**. No preamble, no pep talk.`;
+}
+function md(src) {
+  const inline = (s) => s.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/`([^`]+)`/g, "<code>$1</code>");
+  let out = "", list = null, para = [];
+  const flush = () => { if (para.length) { out += `<p>${inline(para.join(" "))}</p>`; para = []; } };
+  const close = () => { if (list) { out += `</${list}>`; list = null; } };
+  for (const raw of esc(src || "").split("\n")) {
+    const l = raw.trim();
+    let m;
+    if (!l) { flush(); close(); }
+    else if ((m = l.match(/^#{1,6}\s+(.*)$/))) { flush(); close(); out += `<p class="md-h">${inline(m[1])}</p>`; }
+    else if ((m = l.match(/^[-*•]\s+(.*)$/))) { flush(); if (list !== "ul") { close(); out += "<ul>"; list = "ul"; } out += `<li>${inline(m[1])}</li>`; }
+    else if ((m = l.match(/^\d+[.)]\s+(.*)$/))) { flush(); if (list !== "ol") { close(); out += "<ol>"; list = "ol"; } out += `<li>${inline(m[1])}</li>`; }
+    else { close(); para.push(l); }
+  }
+  flush(); close();
+  return out;
+}
+async function stream(key, input, elId) {
+  S.busy.add(key); S.errs.delete(key); S.streamText.delete(key); render();
+  try {
+    const r = await S.sample(input, { modelTier: "default", cache: false, onText: ({ text }) => {
+      S.streamText.set(key, text);
+      const el = document.getElementById(elId);
+      if (el) el.innerHTML = md(text);
+    } });
+    return r.text;
+  } catch (e) {
+    const msg = sampleError(e);
+    if (msg) S.errs.set(key, msg);
+    return null;
+  } finally {
+    S.busy.delete(key); S.streamText.delete(key); render();
+  }
+}
+function markPause(id) {
+  const sess = S.session;
+  if (sess?.current === id && sess.phase === "back" && sess.pauseAt == null) sess.pauseAt = performance.now();
+}
+async function goDeeper(id) {
+  const c = S.byId.get(id);
+  if (!c || !claudeReady() || S.busy.has(`deep:${id}`)) return;
+  markPause(id);
+  const sess = S.session, isCur = sess?.current === id;
+  const typed = isCur ? sess.typed.trim() : attemptsFor(id).filter((a) => a.a).pop()?.a || "";
+  const prompt = deepPrompt(c, typed, isCur ? sess.grade : null);
+  const text = await stream(`deep:${id}`, prompt, `deep-${id}`);
+  if (!text) return;
+  const rec = { prompt, text, followups: [], at: Date.now() };
+  S.deep.set(id, rec);
+  persist(`deepdives/${id}`, rec);
+  render();
+}
+async function followUp(id, q) {
+  const rec = S.deep.get(id);
+  q = (q || "").trim();
+  if (!rec || !q || !claudeReady() || S.busy.has(`follow:${id}`)) return;
+  markPause(id);
+  const turns = [{ role: "user", content: rec.prompt }, { role: "assistant", content: rec.text }];
+  for (const f of rec.followups.slice(-6)) turns.push({ role: "user", content: f.q }, { role: "assistant", content: f.a });
+  turns.push({ role: "user", content: `${q}\n\n(At most 200 words. Plain Markdown. Stay general: no real organizations, places, vendors or products unless asked.)` });
+  S.pendingQ.set(id, q);
+  const text = await stream(`follow:${id}`, turns, `follow-${id}`);
+  S.pendingQ.delete(id);
+  if (!text) return render();
+  rec.followups.push({ q: q.slice(0, 1000), a: text, at: Date.now() });
+  persist(`deepdives/${id}`, rec);
+  render();
 }
 function draftPrompt(note) {
   return `Turn this note into spaced-repetition cards for the learner.
@@ -267,19 +360,22 @@ function startSession() {
 function advance(doRender = true) {
   const sess = S.session;
   const nx = nextCard({ queue: sess.queue, cards: S.cards, mem: S.mem, now: Date.now(), lastId: sess.lastId });
-  Object.assign(sess, { current: nx?.id || null, from: nx?.from, phase: "front", typed: "", grade: null, typing: false, t0: performance.now(), waitMs: 0, hiddenMs: 0 });
+  Object.assign(sess, { current: nx?.id || null, from: nx?.from, phase: "front", typed: "", grade: null, override: false, focusBox: FINE_POINTER, t0: performance.now(), waitMs: 0, hiddenMs: 0, pauseAt: null });
   if (doRender) render();
 }
-function remaining() {
+/** Cards, not reviews: each card today is in exactly one bucket. */
+function progress() {
   const sess = S.session;
-  const learning = S.cards.filter((c) => isLearning(S.mem.get(c.id)) && !S.mem.get(c.id).suspended && !sess.queue.includes(c.id)).length;
-  return sess.queue.length + learning;
+  const back = new Set(S.cards.filter((c) => isLearning(S.mem.get(c.id)) && !S.mem.get(c.id).suspended).map((c) => c.id));
+  const done = new Set((S.logs.get(today()) || []).map((l) => l.c).filter((id) => !back.has(id)));
+  const toGo = sess ? sess.queue.filter((id) => !back.has(id) && !done.has(id)).length : 0;
+  return { done: done.size, toGo, back: back.size, total: done.size + toGo + back.size };
 }
 function reveal() { if (S.session.current) { S.session.phase = "back"; render(); } }
 async function grade() {
   const sess = S.session, c = S.byId.get(sess.current);
-  if (!c || !sess.typed.trim() || !claudeReady()) return;
-  const g = await ask(`grade:${c.id}`, gradePrompt(c, sess.typed.trim()));
+  if (!c || !sess.typed.trim() || !claudeReady() || S.busy.has(`grade:${c.id}`)) return;
+  const g = await ask(`grade:${c.id}`, gradePrompt(c, sess.typed.trim()), c.kind === "fact" ? { modelTier: "quick" } : {});
   if (S.session !== sess || sess.current !== c.id) return;
   if (g) {
     const pts = Array.isArray(g.points) ? g.points : [];
@@ -297,7 +393,9 @@ function rate(r) {
   const now = Date.now();
   const prev = S.mem.get(c.id);
   const res = applyRating({ mem: prev, card: c, rating: r, now, config: S.config, sched: S.sched });
-  res.log.d = Math.round(Math.min(Math.max(performance.now() - sess.t0 - sess.waitMs - sess.hiddenMs, 300), 600000));
+  // Review cost excludes waiting on Claude and anything after a deeper dive or explanation was opened.
+  const paused = sess.pauseAt != null ? performance.now() - sess.pauseAt : 0;
+  res.log.d = Math.round(Math.min(Math.max(performance.now() - sess.t0 - sess.waitMs - sess.hiddenMs - paused, 300), 600000));
   if (sess.typed.trim()) res.log.a = sess.typed.trim().slice(0, 600);
   if (sess.grade?.rating) res.log.g = sess.grade.rating;
   S.mem.set(c.id, res.mem);
@@ -312,7 +410,7 @@ function rate(r) {
   sess.reviewed++;
   if (r > 1) sess.passed++;
   sess.lastId = c.id;
-  toast(`${RATING[r]}. Next in ${fmtInterval(res.intervalMs)}.`, { label: "Undo", fn: undoLast });
+  toast(`${RATING_UI[r]}. ${r === 1 ? "Back" : "Next"} in ${fmtInterval(res.intervalMs)}.`, { label: "Undo", fn: undoLast });
   advance();
 }
 function undoLast() {
@@ -324,12 +422,13 @@ function undoLast() {
   const items = S.logs.get(u.key) || [];
   for (let i = items.length - 1; i >= 0; i--) if (items[i].c === u.id) { items.splice(i, 1); break; }
   persist(`reviews/${u.key}`, { day: u.key, items });
-  Object.assign(sess, { queue: u.queue, reviewed: u.reviewed, passed: u.passed, undo: null, current: u.id, phase: "back", typed: u.typed, grade: u.grade, t0: performance.now(), waitMs: 0, hiddenMs: 0 });
+  Object.assign(sess, { queue: u.queue, reviewed: u.reviewed, passed: u.passed, undo: null, current: u.id, phase: "back", typed: u.typed, grade: u.grade, override: false, t0: performance.now(), waitMs: 0, hiddenMs: 0, pauseAt: null });
   render();
 }
 async function explain(id) {
   const c = S.byId.get(id);
   if (!c || !claudeReady()) return;
+  markPause(id);
   const x = await ask(`explain:${id}`, explainPrompt(c, attemptsFor(id)));
   if (!x) return;
   const cc = cleanCard(x.contrast_card ? { ...x.contrast_card, kind: "fact" } : null);
@@ -381,7 +480,7 @@ function saveFlag(card, reason, note) {
   const f = { id: uid("f"), card: card || null, reason, note: str(note, 1000), at: Date.now(), resolved: false, build: BUILD };
   S.flags.push(f);
   persist(`flags/${f.id}`, f);
-  toast("Flag saved. Claude reads these when you ask it to review your learning.");
+  toast(card ? "Reported. Claude fixes reported cards when you ask it to review your learning." : "Topic saved.");
 }
 
 // ---------- rendering ----------
@@ -396,7 +495,7 @@ function render() {
   const v = S.view;
   root.innerHTML = `${nav()}<div id="status-slot">${statusLine()}</div><main id="view">${{ review: viewReview, catalog: viewCatalog, add: viewAdd, patterns: viewPatterns, tuning: viewTuning }[v]()}</main>`;
   const ta = document.getElementById("answer-box");
-  if (ta && S.session?.typing) ta.focus();
+  if (ta && S.session?.focusBox) { ta.focus(); S.session.focusBox = false; }
 }
 function renderStatus() { const el = document.getElementById("status-slot"); if (el) el.innerHTML = statusLine(); }
 function nav() {
@@ -406,43 +505,41 @@ function nav() {
 function statusLine() {
   const store = S.mode === "db" ? "Saved to your account" : "This browser only";
   const c = S.session?.counts;
-  const due = c ? `<span><b>${remaining()}</b> left today</span>${c.backlog ? `<span class="warn-chip" title="Cards over today's review cap wait without penalty. The ones losing ground fastest are shown first."><b>${c.backlog}</b> waiting</span>` : ""}` : "";
+  const p = S.session ? progress() : null;
+  const due = p ? `<span><b>${p.done}</b> done · <b>${p.toGo}</b> to go${p.back ? ` · <b>${p.back}</b> coming back` : ""}</span>${c?.backlog ? `<span class="warn-chip" title="Cards over today's review cap wait without penalty. The ones losing ground fastest are shown first."><b>${c.backlog}</b> waiting</span>` : ""}` : "";
   return `<div class="status"><span class="mono">${esc(today())}</span>${due}<span class="store${S.mode === "db" ? "" : " local"}">${store}</span>${S.unsaved ? `<span class="warn-chip">Unsaved changes</span>` : ""}${claudeReady() ? "" : `<span class="muted-chip">Claude off</span>`}</div>`;
 }
 function kindChip(c) { return `<span class="chip kind-${c.kind}">${c.kind}</span>`; }
 function cardHead(c) {
   const d = DECK_META.get(c.deck);
-  return `<div class="card-head"><span class="callno">${esc(callNumber(c))}</span>${kindChip(c)}<span class="deck-name">${esc(d?.title || c.deck)}</span>${c.verify ? `<span class="chip verify" title="Not fully certain. Check the source before relying on it.">verify</span>` : ""}${c.edited ? `<span class="chip">edited</span>` : ""}</div>`;
+  const lvl = mastery(S.mem.get(c.id));
+  return `<div class="card-head"><span class="callno">${esc(callNumber(c))}</span>${kindChip(c)}<span class="deck-name">${esc(d?.title || c.deck)}</span><span class="chip m${lvl}" title="Mastery: how long you'd likely still recall it">${MASTERY[lvl]}</span>${c.verify ? `<span class="chip verify" title="Not fully certain. Check the source before relying on it.">verify</span>` : ""}${c.edited ? `<span class="chip">edited</span>` : ""}</div>`;
 }
 function viewReview() {
   const sess = S.session;
   const c = sess?.current && S.byId.get(sess.current);
   if (!c) return doneScreen();
   const m = S.mem.get(c.id);
-  const typedKinds = c.kind !== "fact";
   const busyGrade = S.busy.has(`grade:${c.id}`);
   const front = `<article class="index-card" aria-label="Card ${esc(callNumber(c))}">${cardHead(c)}
 <div class="ruled"><p class="prompt">${fmt(c.prompt)}</p></div>
-${sess.phase === "front" ? frontControls(c, typedKinds, busyGrade) : backSide(c, m)}
+${sess.phase === "front" ? frontControls(c, busyGrade) : backSide(c, m)}
 </article>`;
-  const left = remaining();
-  const done = sess.reviewed;
-  const total = done + left;
-  return `${front}<div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${done}"><span style="width:${total ? (done / total) * 100 : 0}%"></span></div>
-<p class="hint mono">${done} done · ${left} left${sess.from === "learning" || sess.from === "ahead" ? " · relearning step" : isNew(m) ? " · new card" : ""}</p>`;
+  const p = progress();
+  return `${front}<div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="${p.total}" aria-valuenow="${p.done}"><span style="width:${p.total ? (p.done / p.total) * 100 : 0}%"></span></div>
+<p class="hint">${p.done} of ${p.total} cards done today${sess.from === "learning" || sess.from === "ahead" ? " · this one is back for another try" : isNew(m) ? " · new card" : ""}</p>`;
 }
-function frontControls(c, typedKinds, busy) {
+function frontControls(c, busy) {
   const sess = S.session;
-  const showBox = typedKinds || sess.typing;
   const err = S.errs.get(`grade:${c.id}`);
+  const can = claudeReady();
   return `<div class="answer-zone">
-${showBox ? `<label class="lbl" for="answer-box">${c.kind === "judgment" ? "What would you do?" : c.kind === "concept" ? "Explain it" : "Your answer"}</label>
-<textarea id="answer-box" rows="${c.kind === "fact" ? 2 : 5}" placeholder="${c.kind === "fact" ? "Type it, or just think it" : "Write it out. Claude grades it against the key points."}">${esc(sess.typed)}</textarea>` : ""}
+<label class="lbl" for="answer-box">${c.kind === "judgment" ? "What would you do?" : c.kind === "concept" ? "Explain it" : "Your answer"}</label>
+<textarea id="answer-box" rows="${c.kind === "fact" ? 2 : 5}" placeholder="${can ? "Type your answer. Claude checks it and schedules the card." : "Type your answer, or just think it."}">${esc(sess.typed)}</textarea>
 <div class="row">
-${typedKinds && claudeReady() ? `<button type="button" class="btn primary" data-act="grade" ${busy ? "disabled" : ""}>${busy ? "Claude is reading…" : "Check with Claude"}</button>` : ""}
-<button type="button" class="btn${typedKinds && claudeReady() ? "" : " primary"}" data-act="reveal">Show answer</button>
-${!typedKinds && !sess.typing ? `<button type="button" class="btn ghost" data-act="type">Type it</button>` : ""}
-</div>${err ? `<p class="err">${esc(err)}</p>` : ""}<p class="keys">Space shows the answer · 1–4 rate · Ctrl+Enter checks with Claude</p></div>`;
+${can ? `<button type="button" class="btn primary" data-act="grade" ${busy || !sess.typed.trim() ? "disabled" : ""}>${busy ? "Claude is checking…" : "Check my answer"}</button>` : ""}
+<button type="button" class="btn${can ? " ghost" : " primary"}" data-act="reveal">${can ? "Skip to the answer" : "Show answer"}</button>
+</div>${err ? `<p class="err">${esc(err)}</p>` : ""}<p class="keys">Ctrl+Enter checks your answer</p></div>`;
 }
 function backSide(c, m) {
   const sess = S.session;
@@ -455,21 +552,50 @@ function backSide(c, m) {
   const points = c.points?.length
     ? `<ol class="points">${c.points.map((p, i) => { const v = g?.points?.find((q) => q.i === i + 1); return `<li class="${v ? "v-" + v.verdict : ""}"><span>${fmt(p)}</span>${v ? `<em>${esc(v.verdict)}${v.note ? ": " + esc(v.note) : ""}</em>` : ""}</li>`; }).join("")}</ol>` : "";
   return `<div class="back">
+${g ? `<div class="grade v${g.rating || 0}"><span class="lbl">Claude's evaluation</span>${g.rating ? `<p class="verdict">${VERDICT[g.rating]}</p>` : ""}<p>${esc(g.feedback)}</p>${g.wrong ? `<p class="wrong"><b>Not right:</b> ${esc(g.wrong)}</p>` : ""}</div>` : ""}
 ${sess.typed.trim() ? `<div class="yours"><span class="lbl">You wrote</span><p>${fmt(sess.typed.trim())}</p></div>` : ""}
-${g ? `<div class="grade"><span class="lbl">Claude's read</span><p>${esc(g.feedback)}</p>${g.wrong ? `<p class="wrong"><b>Not right:</b> ${esc(g.wrong)}</p>` : ""}</div>` : ""}
 <div class="answer"><span class="lbl">Answer</span><p>${fmt(c.answer)}</p>${points}${c.why ? `<p class="why">${fmt(c.why)}</p>` : ""}</div>
+${deepBlock(c)}
 ${x ? explanationBlock(c, x) : ""}
 <p class="source">Source: ${esc(c.source || "—")}</p>
-<div class="row small">
-${claudeReady() && (missed || x) ? `<button type="button" class="btn ${isPersistentMiss(m) && !x ? "primary" : "ghost"}" data-act="explain" data-id="${c.id}" ${busyX ? "disabled" : ""}>${busyX ? "Claude is diagnosing…" : x ? "Re-diagnose" : `You've missed this ${m.agains}×. Explain it to me`}</button>` : ""}
-<button type="button" class="btn ghost" data-act="flag-open" data-id="${c.id}">Flag</button>
-<button type="button" class="btn ghost" data-act="suspend" data-id="${c.id}">Suspend</button>
-</div>${errX ? `<p class="err">${esc(errX)}</p>` : ""}
+${cardActions(c, m, x, missed, busyX)}${errX ? `<p class="err">${esc(errX)}</p>` : ""}
 ${S.cat.flagFor === c.id ? flagForm(c.id) : ""}
 </div>
-<div class="rate" role="group" aria-label="How well did you recall it?">
-${[1, 2, 3, 4].map((r) => `<button type="button" class="rate-btn r${r}${g?.rating === r ? " suggested" : ""}" data-act="rate" data-r="${r}"><span>${RATING[r]}</span><small class="mono">${fmtInterval(prev[r])}</small></button>`).join("")}
-</div>${g?.rating ? `<p class="hint">Claude suggests <b>${RATING[g.rating]}</b>. You decide.</p>` : ""}`;
+${rateBar(c, m, g, prev)}`;
+}
+function cardActions(c, m, x, missed, busyX) {
+  const can = claudeReady();
+  return `<div class="row small">
+${can && !S.deep.has(c.id) && !S.busy.has("deep:" + c.id) ? `<button type="button" class="btn" data-act="deep" data-id="${c.id}">Go deeper</button>` : ""}
+${can && (missed || x) ? `<button type="button" class="btn ${isPersistentMiss(m) && !x ? "primary" : "ghost"}" data-act="explain" data-id="${c.id}" ${busyX ? "disabled" : ""}>${busyX ? "Claude is diagnosing…" : x ? "Re-diagnose my misses" : `Missed ${m.agains}×. Why do I keep missing this?`}</button>` : ""}
+<button type="button" class="btn ghost" data-act="flag-open" data-id="${c.id}" title="Something about the card is wrong, unclear or not useful. Claude fixes reported cards when you ask it to review your learning.">Report a problem</button>
+<button type="button" class="btn ghost" data-act="${m?.suspended ? "unsuspend" : "suspend"}" data-id="${c.id}" title="${m?.suspended ? "Put this card back into your reviews." : "Take this card out of your reviews. You can bring it back from the Catalog."}">${m?.suspended ? "Show again" : "Stop showing"}</button>
+</div>`;
+}
+function rateBar(c, m, g, prev) {
+  const sess = S.session;
+  if (g?.rating && !sess.override) {
+    const after = mastery(previewOutcome({ mem: m, card: c, now: Date.now(), config: S.config, rating: g.rating }).mem);
+    const before = mastery(m);
+    return `<div class="rate accept"><button type="button" class="rate-btn next r${g.rating}" data-act="rate" data-r="${g.rating}"><span>Next</span><small>${g.rating === 1 ? "this card comes back" : "see it again"} in ${fmtInterval(prev[g.rating])} · ${MASTERY[before]}${after !== before ? ` → ${MASTERY[after]}` : ""}</small></button>
+<button type="button" class="btn ghost change" data-act="override">Change rating</button></div>`;
+  }
+  return `<div class="rate" role="group" aria-label="How well did you know it?">
+${[1, 2, 3, 4].map((r) => `<button type="button" class="rate-btn r${r}${g?.rating === r ? " suggested" : ""}" data-act="rate" data-r="${r}"><span>${RATING_UI[r]}</span><small class="mono">${fmtInterval(prev[r])}</small></button>`).join("")}
+</div>`;
+}
+function deepBlock(c) {
+  const id = c.id, rec = S.deep.get(id);
+  const busy = S.busy.has(`deep:${id}`), fbusy = S.busy.has(`follow:${id}`);
+  const err = S.errs.get(`deep:${id}`) || S.errs.get(`follow:${id}`);
+  if (!rec && !busy) return err ? `<p class="err">${esc(err)}</p>` : "";
+  const thinking = '<p class="muted">Thinking…</p>';
+  const body = rec ? md(rec.text) : md(S.streamText.get(`deep:${id}`)) || thinking;
+  const fu = (rec?.followups || []).map((f) => `<div class="fq"><p class="q">${esc(f.q)}</p><div class="md">${md(f.a)}</div></div>`).join("");
+  return `<div class="deep"><span class="lbl">Deeper dive</span><div class="md" id="deep-${id}">${body}</div>${fu}
+${fbusy ? `<div class="fq"><p class="q">${esc(S.pendingQ.get(id) || "")}</p><div class="md" id="follow-${id}">${md(S.streamText.get(`follow:${id}`)) || thinking}</div></div>` : ""}
+${rec && claudeReady() ? `<form class="followup" data-form="followup" data-id="${id}"><label class="sr" for="fq-${id}">Ask a follow-up question</label><input id="fq-${id}" name="q" type="text" placeholder="Ask a follow-up question" autocomplete="off"><button class="btn" type="submit" ${fbusy ? "disabled" : ""}>Ask</button></form>` : ""}
+${err ? `<p class="err">${esc(err)}</p>` : ""}</div>`;
 }
 function explanationBlock(c, x) {
   return `<div class="tailored"><span class="lbl">Aimed at your misses · ${esc(new Date(x.at).toLocaleDateString())}</span>
@@ -478,10 +604,10 @@ ${x.contrast || x.rewrite ? `<div class="row small">${x.contrast ? `<button type
 }
 function flagForm(id) {
   const reasons = id ? ["Wrong", "Unclear", "Not useful for my work", "Too easy", "Other"] : ["Topic I want covered"];
-  return `<form class="flag" data-form="flag" data-id="${id || ""}"><span class="lbl">${id ? "What's wrong with this card?" : "Suggest a topic"}</span>
+  return `<form class="flag" data-form="flag" data-id="${id || ""}"><span class="lbl">${id ? "What's wrong with this card?" : "Suggest a topic"}</span>${id ? `<p class="muted">Reports are saved for your next "review my learning" session with Claude, which fixes or retires the card.</p>` : ""}
 <div class="row small">${reasons.map((r, i) => `<label class="pill"><input type="radio" name="reason" value="${esc(r)}" ${i === 0 ? "checked" : ""}> ${esc(r)}</label>`).join("")}</div>
 <textarea id="flag-note-${id || "topic"}" name="note" rows="2" placeholder="${id ? "Optional: what should it say?" : "What do you keep needing to know at work?"}"></textarea>
-<div class="row small"><button class="btn primary" type="submit">Save flag</button>${id ? `<button class="btn ghost" type="button" data-act="flag-close">Cancel</button>` : ""}</div></form>`;
+<div class="row small"><button class="btn primary" type="submit">${id ? "Save report" : "Save topic"}</button>${id ? `<button class="btn ghost" type="button" data-act="flag-close">Cancel</button>` : ""}</div></form>`;
 }
 function doneScreen() {
   const sess = S.session;
@@ -489,16 +615,21 @@ function doneScreen() {
   const f = forecast({ cards: S.cards, mem: S.mem, now, config: S.config, days: 8 });
   const left = S.cards.filter((c) => isNew(S.mem.get(c.id)) && !c.retired).length;
   const items = S.logs.get(today()) || [];
-  const passed = items.filter((l) => l.r > 1).length;
-  const msg = items.length ? `${items.length} reviews today, ${pct(passed / items.length)} recalled.` : left ? "Nothing due right now." : "Nothing due, and no new cards left.";
+  const cardsToday = new Set(items.map((l) => l.c)).size;
+  const msg = items.length ? `${cardsToday} card${cardsToday === 1 ? "" : "s"} reviewed today.` : left ? "Nothing due right now." : "Nothing due, and no new cards left.";
   const backlog = sess.counts.backlog;
   return `<section class="panel done"><h2>${items.length ? "Done for today" : "All caught up"}</h2><p>${msg}</p>
 ${backlog ? `<p>${backlog} overdue cards are waiting beyond today's cap of ${S.config.reviewsPerDay}. They lose little by waiting: the ones decaying fastest are shown first each day. New cards stay paused until the backlog clears.</p>` : ""}
 <p class="mono strip">${f.map((n, i) => `<span><small>${i === 0 ? "today" : i === 1 ? "tmrw" : "+" + i}</small>${n}</span>`).join("")}</p>
-<p class="muted">${left} new cards in the catalog. ${S.config.newPerDay} are introduced per day.</p>
+<p class="muted">${masterySummary(S.cards)}. ${left ? `${S.config.newPerDay} new cards are introduced per day.` : ""}</p>
 <div class="row"><a class="btn" href="#add">Turn a note into cards</a><a class="btn ghost" href="#patterns">See what you keep missing</a></div></section>`;
 }
 
+function masterySummary(cards) {
+  const n = [0, 0, 0, 0, 0];
+  for (const c of cards) if (!c.retired) n[mastery(S.mem.get(c.id))]++;
+  return MASTERY.map((label, i) => (n[i] ? `${n[i]} ${label.toLowerCase()}` : "")).filter(Boolean).join(" · ");
+}
 function deckStats(deck) {
   const cs = S.cards.filter((c) => c.deck === deck && !c.retired);
   const now = Date.now();
@@ -521,19 +652,20 @@ function viewCatalog() {
     ? S.cards.filter((c) => `${c.id} ${c.prompt} ${c.answer}`.toLowerCase().includes(q))
     : S.cat.deck ? S.cards.filter((c) => c.deck === S.cat.deck) : [];
   return `<section class="panel"><div class="row between"><h2>Catalog</h2><label class="search"><span class="sr">Search cards</span><input id="cat-q" type="search" placeholder="Search prompts and answers" value="${esc(S.cat.q)}"></label></div>
-<div class="drawers">${decks.map((d) => { const s = deckStats(d.deck); return `<button type="button" class="drawer${S.cat.deck === d.deck && !q ? " on" : ""}" data-act="deck" data-deck="${d.deck}"><span class="callno">${d.code}</span><span class="dname">${esc(d.title)}</span><span class="dmeta mono">${s.total} cards · ${s.fresh} new · recall ${pct(s.meanR)}${s.misses ? ` · ${s.misses} misses` : ""}</span></button>`; }).join("")}</div>
+<div class="drawers">${decks.map((d) => { const s = deckStats(d.deck); return `<button type="button" class="drawer${S.cat.deck === d.deck && !q ? " on" : ""}" data-act="deck" data-deck="${d.deck}"><span class="callno">${d.code}</span><span class="dname">${esc(d.title)}</span><span class="dmeta">${s.total} cards: ${masterySummary(S.cards.filter((c) => c.deck === d.deck))}</span></button>`; }).join("")}</div>
+<p class="muted">Mastery is how long you'd likely still recall a card: <b>learning</b> (days), <b>familiar</b> (up to 3 weeks), <b>solid</b> (up to 3 months), <b>mastered</b> (longer). Reviews raise it; misses lower it.</p>
 ${S.cat.deck && !q ? `<p class="blurb">${esc(DECK_META.get(S.cat.deck)?.blurb || "")}</p>` : ""}
 ${list.length ? `<ul class="cardlist">${list.map(cardRow).join("")}</ul>` : q ? `<p class="muted">No cards match “${esc(S.cat.q)}”.</p>` : `<p class="muted">Open a drawer to browse its cards.</p>`}</section>`;
 }
 function cardRow(c) {
   const m = S.mem.get(c.id);
-  const st = m?.suspended ? "suspended" : isNew(m) ? "new" : isLearning(m) ? "learning" : `due ${new Date(m.due).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
-  const r = currentR(m, Date.now(), S.config, S.sched);
+  const lvl = MASTERY[mastery(m)].toLowerCase();
+  const st = m?.suspended ? "not showing" : isNew(m) ? "new" : isLearning(m) ? "learning · back today" : `${lvl} · next ${new Date(m.due).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
   const open = S.cat.open === c.id;
-  return `<li class="crow${open ? " open" : ""}"><button type="button" class="crow-head" data-act="open" data-id="${c.id}" aria-expanded="${open}"><span class="callno">${esc(callNumber(c))}</span><span class="cprompt">${esc(clip(c.prompt, 110))}</span><span class="cmeta mono">${st}${r != null ? ` · ${pct(r)}` : ""}${m?.agains ? ` · ${m.agains}×` : ""}</span></button>
+  return `<li class="crow${open ? " open" : ""}"><button type="button" class="crow-head" data-act="open" data-id="${c.id}" aria-expanded="${open}"><span class="callno">${esc(callNumber(c))}</span><span class="cprompt">${esc(clip(c.prompt, 110))}</span><span class="cmeta">${st}${m?.agains ? ` · missed ${m.agains}×` : ""}${S.deep.has(c.id) ? " · deeper dive saved" : ""}</span></button>
 ${open ? `<div class="cdetail">${cardHead(c)}<p class="prompt sm">${fmt(c.prompt)}</p><p>${fmt(c.answer)}</p>${c.points?.length ? `<ol class="points">${c.points.map((p) => `<li><span>${fmt(p)}</span></li>`).join("")}</ol>` : ""}${c.why ? `<p class="why">${fmt(c.why)}</p>` : ""}
-${S.expl.get(c.id) ? explanationBlock(c, S.expl.get(c.id)) : ""}<p class="source">Source: ${esc(c.source || "—")}${m && !isNew(m) ? ` · ${m.reps} reviews, ${m.lapses} lapses${m.stability ? `, stability ${m.stability.toFixed(1)}d` : ""}` : ""}</p>
-<div class="row small"><button type="button" class="btn ghost" data-act="${m?.suspended ? "unsuspend" : "suspend"}" data-id="${c.id}">${m?.suspended ? "Unsuspend" : "Suspend"}</button><button type="button" class="btn ghost" data-act="flag-open" data-id="${c.id}">Flag</button>${claudeReady() && m?.agains ? `<button type="button" class="btn ghost" data-act="explain" data-id="${c.id}" ${S.busy.has("explain:" + c.id) ? "disabled" : ""}>${S.busy.has("explain:" + c.id) ? "Diagnosing…" : "Explain my misses"}</button>` : ""}</div>
+${deepBlock(c)}${S.expl.get(c.id) ? explanationBlock(c, S.expl.get(c.id)) : ""}<p class="source">Source: ${esc(c.source || "—")}${m && !isNew(m) ? ` · reviewed ${m.reps}×` : ""}</p>
+${cardActions(c, m, S.expl.get(c.id), (m?.agains || 0) >= 1, S.busy.has("explain:" + c.id))}
 ${S.errs.get("explain:" + c.id) ? `<p class="err">${esc(S.errs.get("explain:" + c.id))}</p>` : ""}${S.cat.flagFor === c.id ? flagForm(c.id) : ""}</div>` : ""}</li>`;
 }
 
@@ -616,7 +748,7 @@ ${cfg.intervalScale !== 1 ? `<p>Currently applied: intervals × <span class="mon
 <section class="panel"><h2>Your data</h2><p class="muted">${S.mode === "db" ? "Reviews are saved to this artifact's private store. Only you can read or change them." : "Saved in this browser only. Export regularly."} ${logs.length} reviews, ${S.custom.size} added cards, ${S.flags.length} flags. Build ${esc(BUILD)}.</p>
 <div class="row small"><button type="button" class="btn" data-act="export">Export JSON</button></div><div id="export-slot"></div></section>`;
 }
-const SESSION_PROMPT = `Review my learning in the Card Catalog artifact. Read its db (reviews, cards, flags, explanations, custom, config/scheduler) with ArtifactData. Fix or retire flagged deck cards in decks/ and resolve the flags. If there are enough reviews, run tools/optimize.py and write the fitted parameters and per-kind retention to config/scheduler. Write what you found to insights/latest. Rebuild, run the tests, republish, and tell me what changed and why.`;
+const SESSION_PROMPT = `Review my learning in the Card Catalog artifact. Read its db (reviews, cards, flags, explanations, deepdives, custom, config/scheduler) with ArtifactData. Fix or retire flagged deck cards in decks/ and resolve the flags. If there are enough reviews, run tools/optimize.py and write the fitted parameters and per-kind retention to config/scheduler. Write what you found to insights/latest. Rebuild, run the tests, republish, and tell me what changed and why.`;
 
 // ---------- events ----------
 function route() {
@@ -631,7 +763,8 @@ document.addEventListener("click", async (ev) => {
   const act = el.dataset.act, id = el.dataset.id;
   switch (act) {
     case "reveal": return reveal();
-    case "type": S.session.typing = true; return render();
+    case "deep": return goDeeper(id);
+    case "override": S.session.override = true; return render();
     case "grade": return grade();
     case "rate": return rate(Number(el.dataset.r));
     case "explain": return explain(id);
@@ -682,7 +815,11 @@ document.addEventListener("click", async (ev) => {
 });
 document.addEventListener("input", (ev) => {
   const t = ev.target;
-  if (t.id === "answer-box") S.session.typed = t.value;
+  if (t.id === "answer-box") {
+    S.session.typed = t.value;
+    const b = document.querySelector('[data-act="grade"]');
+    if (b && !S.busy.has(`grade:${S.session.current}`)) b.disabled = !t.value.trim();
+  }
   else if (t.id === "add-note") { S.add.note = t.value; const b = document.querySelector('[data-act="draft"]'); if (b && !S.busy.has("draft")) b.disabled = !t.value.trim(); }
   else if (t.id === "cat-q") { S.cat.q = t.value; const pos = t.selectionStart; render(); const n = document.getElementById("cat-q"); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }
 });
@@ -697,6 +834,10 @@ document.addEventListener("submit", (ev) => {
   if (!form) return;
   ev.preventDefault();
   const fd = new FormData(form);
+  if (form.dataset.form === "followup") {
+    followUp(form.dataset.id, String(fd.get("q") || ""));
+    return;
+  }
   if (form.dataset.form === "flag") {
     saveFlag(form.dataset.id || null, String(fd.get("reason") || "Other"), String(fd.get("note") || ""));
     S.cat.flagFor = null;
@@ -725,10 +866,13 @@ document.addEventListener("keydown", (ev) => {
   if (S.view !== "review" || !S.session?.current) return;
   const inText = ev.target.tagName === "TEXTAREA" || ev.target.tagName === "INPUT" || ev.target.tagName === "SELECT";
   if (inText) {
-    if (ev.target.id === "answer-box" && ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); claudeReady() && S.byId.get(S.session.current)?.kind !== "fact" ? grade() : reveal(); }
+    if (ev.target.id === "answer-box" && ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); claudeReady() && S.session.typed.trim() ? grade() : reveal(); }
     return;
   }
-  if (S.session.phase === "front" && (ev.key === " " || ev.key === "Enter") && !ev.target.closest("button,a")) { ev.preventDefault(); reveal(); }
+  if (ev.target.closest("button,a,form")) return;
+  const g = S.session.grade;
+  if (S.session.phase === "front" && (ev.key === " " || ev.key === "Enter")) { ev.preventDefault(); reveal(); }
+  else if (S.session.phase === "back" && (ev.key === "Enter" || ev.key === " ") && g?.rating && !S.session.override) { ev.preventDefault(); rate(g.rating); }
   else if (S.session.phase === "back" && ["1", "2", "3", "4"].includes(ev.key)) { ev.preventDefault(); rate(Number(ev.key)); }
 });
 let hiddenAt = null;
@@ -744,7 +888,7 @@ async function exportData() {
     cards: S.cards.map(({ id, deck, kind, prompt, answer, points, source, custom, edited, retired }) => ({ id, deck, kind, prompt, answer, points, source, custom: !!custom, edited: !!edited, retired: !!retired })),
     memory: Object.fromEntries(S.mem),
     reviews: [...S.logs.entries()].flatMap(([day, items]) => items.map((x) => ({ day, ...x }))),
-    explanations: Object.fromEntries(S.expl), flags: S.flags, insights: S.insights,
+    explanations: Object.fromEntries(S.expl), deepdives: Object.fromEntries(S.deep), flags: S.flags, insights: S.insights,
   };
   const json = JSON.stringify(data, null, 1);
   if (S.downloads) {

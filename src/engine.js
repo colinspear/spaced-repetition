@@ -7,10 +7,12 @@ import { makeScheduler, newCard, State, Rating, DAY, MINUTE, DEFAULT_PARAMETERS 
 // so expensive cards get a lower target (longer intervals). Same-session learning steps
 // make sense for facts, not for scenarios you just wrote three paragraphs about.
 // These are priors. tools/optimize.py replaces them with fitted values once there is data.
+// Learning steps: one 10-minute step, so a card you knew moves straight to days and only a
+// miss (or a shaky answer) comes back once later in the session for a corrective retrieval.
 export const DEFAULT_CONFIG = Object.freeze({
   parameters: [...DEFAULT_PARAMETERS],
   kinds: {
-    fact: { retention: 0.9, learningSteps: [1, 10], relearningSteps: [10] },
+    fact: { retention: 0.9, learningSteps: [10], relearningSteps: [10] },
     concept: { retention: 0.85, learningSteps: [10], relearningSteps: [10] },
     judgment: { retention: 0.8, learningSteps: [], relearningSteps: [] },
   },
@@ -223,6 +225,23 @@ export function previewIntervals({ mem, card, now, config }) {
   const out = {};
   for (const r of [1, 2, 3, 4]) out[r] = applyRating({ mem, card, rating: r, now, config, sched }).intervalMs;
   return out;
+}
+/** The memory state a rating would produce (no fuzz), for showing mastery before committing. */
+export function previewOutcome({ mem, card, now, config, rating }) {
+  return applyRating({ mem, card, rating, now, config, sched: schedulerFor(config, { fuzz: false }) });
+}
+
+/**
+ * Mastery bands from FSRS stability: the number of days until predicted recall falls to 90%.
+ * Learning: days. Familiar: up to 3 weeks. Solid: up to 3 months. Mastered: 3 months or more.
+ */
+export const MASTERY = Object.freeze(["New", "Learning", "Familiar", "Solid", "Mastered"]);
+export function mastery(m) {
+  if (isNew(m)) return 0;
+  if (isLearning(m) || !(m.stability >= 3)) return 1;
+  if (m.stability < 21) return 2;
+  if (m.stability < 90) return 3;
+  return 4;
 }
 export function fmtInterval(ms) {
   if (ms < 60 * MINUTE) return `${Math.max(1, Math.round(ms / MINUTE))}m`;
