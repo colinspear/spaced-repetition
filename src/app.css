@@ -301,3 +301,17 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var
 .deep-note { font-size: 13px; color: var(--ink-2); padding-top: 8px; border-top: 1px dashed var(--line); max-width: 65ch; }
 .study-detail { display: grid; gap: 12px; padding: 14px; background: var(--stock-2); border-radius: 3px; }
 .study-detail .card-head { padding: 0 0 8px; }
+
+/* level calibration */
+.level { display: grid; gap: 8px; }
+.level-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.level-row .lbl { margin-right: 2px; }
+.pill-btn {
+  font: inherit; font-size: 13px; padding: 4px 10px; border: 0; border-radius: 2px; cursor: pointer;
+  background: var(--stock); color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--line);
+}
+.pill-btn.on { background: var(--ink); color: var(--stock); box-shadow: none; }
+.level-note { display: flex; gap: 6px; flex: 1 1 260px; min-width: 0; }
+.level-note input { flex: 1 1 auto; min-width: 0; padding: 6px 8px; }
+.rewrite { background: var(--stock); border-radius: 3px; padding: 12px 14px; box-shadow: inset 0 0 0 1px var(--accent); display: grid; gap: 8px; }
+.draft input[type="text"] { width: 100%; box-sizing: border-box; }

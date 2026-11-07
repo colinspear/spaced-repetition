@@ -35,6 +35,8 @@ function installMock() {
     replies.push(prompt.slice(0, 60) + (opts.modelTier ? ` [${opts.modelTier}]` : ""));
     if (prompt.startsWith("Grade one") && prompt.includes("CARD (fact")) return { points: [{ i: 1, verdict: "hit", note: "" }], wrong: "", feedback: "Right.", rating: 3 };
     if (prompt.startsWith("Grade one")) return { points: [{ i: 1, verdict: "hit", note: "named accountability" }, { i: 2, verdict: "miss", note: "steward role missing" }], wrong: "", feedback: "You defined the owner but not the steward.", rating: 2 };
+    if (prompt.startsWith("Rewrite this spaced-repetition card")) { window.__mock.lastRewrite = prompt; return { kind: "judgment", prompt: "A team keeps two definitions of one metric. What do you do?", answer: "Name them distinctly and pick one for shared reporting.", points: ["distinct names", "one authoritative"], why: "Asks for application instead of recall." }; }
+    if (prompt.startsWith("Draft new spaced-repetition cards")) { window.__mock.lastDeckDraft = prompt; return { cards: [{ kind: "concept", prompt: "Why separate policy from standard?", answer: "So details can change without re-approval.", points: ["stable policy", "changeable standard"], source: "Governance practice" }, { kind: "fact", prompt: "What does RACI's A require?", answer: "Exactly one accountable person." }] }; }
     if (prompt.startsWith("Turn this note")) return { cards: [{ kind: "fact", prompt: "Which tenant setting exposes DAX in scans?", answer: "Enhance admin API responses with DAX and mashup expressions." }, { kind: "concept", prompt: "Why stitch lineage by server identity?", answer: "Connectors name servers differently.", points: ["alias vs FQDN", "match identities"] }] };
     if (prompt.startsWith("A learner keeps missing")) return { diagnosis: "You swap steward and custodian.", explanation: "Steward = meaning; custodian = machinery.", hook: "Stewards argue about definitions; custodians argue about backups.", contrast_card: { prompt: "Who restores a deleted table?", answer: "The custodian." }, rewrite: null };
     return {};
@@ -190,6 +192,39 @@ assert.equal(await rl.inputValue("#answer-box"), "half-typed thought");
 await rl.click('[data-act="reveal"]');
 await rl.click('[data-act="study-save"]');
 assert.match(await rl.textContent('.tab[href="#study"]'), /Study 1/);
+
+// Level calibration: mark, note, rewrite, accept; deck drafting carries the marks to Claude
+const lv = await newPage({ viewport: { width: 800, height: 900 } });
+await lv.click('[data-act="reveal"]');
+const lvId = await lv.evaluate(() => document.querySelector('[data-act="level"]').dataset.id);
+await lv.click('[data-act="level"][data-level="basic"]');
+assert.equal(await lv.evaluate((id) => window.__mock.docs.get(`feedback/${id}`).level, lvId), "basic");
+await lv.fill('form[data-form="level-note"] input', "I know the roles; test when they conflict");
+await lv.click('form[data-form="level-note"] button[type="submit"]');
+assert.match(await lv.evaluate((id) => window.__mock.docs.get(`feedback/${id}`).note, lvId), /conflict/);
+await lv.click('[data-act="rewrite-level"]');
+await lv.waitForSelector(".rewrite");
+assert.match(await lv.evaluate(() => window.__mock.lastRewrite), /too basic[\s\S]*test when they conflict/);
+await lv.click('[data-act="rewrite-accept"]');
+const added = await lv.evaluate(() => [...window.__mock.docs.entries()].filter(([k]) => k.startsWith("custom/")).map(([, v]) => v));
+assert.equal(added.length, 1);
+assert.equal(added[0].replaces, lvId); assert.equal(added[0].verify, true); assert.equal(added[0].kind, "judgment");
+assert.equal(await lv.evaluate((id) => window.__mock.docs.get(`cards/${id}`).suspended, lvId), true);
+// clicking the same level again clears it
+await lv.click('[data-act="level"][data-level="basic"]');
+assert.equal(await lv.evaluate((id) => window.__mock.docs.get(`feedback/${id}`).level, lvId), null);
+await lv.click('[data-act="level"][data-level="detailed"]');
+await lv.evaluate(() => (location.hash = "catalog"));
+const lvDeck = await lv.evaluate((id) => id.split("-")[0], lvId);
+await lv.click(`[data-deck="${lvDeck}"]`);
+assert.match(await lv.textContent(".panel"), /Your level marks here: 1 too detailed/);
+await lv.click('[data-act="deck-draft"]');
+await lv.waitForSelector(".drafts form");
+assert.match(await lv.evaluate(() => window.__mock.lastDeckDraft), /Too detailed: trivia they don't need/);
+assert.equal(await lv.inputValue(".drafts form input[name='source']"), "Governance practice");
+await lv.locator('.drafts form button[type="submit"]').first().click();
+const drafted = await lv.evaluate(() => [...window.__mock.docs.values()].filter((v) => v.origin === "Drafted by Claude for your level"));
+assert.equal(drafted.length, 1); assert.equal(drafted[0].verify, true); assert.equal(drafted[0].source, "Governance practice");
 
 // 3. Explain flow for a missed card (seeded memory with misses).
 const ex = await newPage({ viewport: { width: 800, height: 900 } }, true, () => {

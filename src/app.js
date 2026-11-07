@@ -25,6 +25,8 @@ const VIEWS = ["review", "study", "catalog", "add", "tuning", "guide"];
 const TABS = ["review", "study", "catalog", "add", "tuning"];
 const VIEW_LABEL = { review: "Review", study: "Study", catalog: "Catalog", add: "Add", tuning: "Tuning", guide: "Guide" };
 const DRAFT_KEY = "card-catalog:draft";
+const LEVELS = [["basic", "Too basic"], ["right", "Just right"], ["detailed", "Too detailed"], ["irrelevant", "Not useful"]];
+const LEVEL_LABEL = Object.fromEntries(LEVELS);
 
 const S = {
   mode: "loading", // loading | db | local | unreachable
@@ -33,6 +35,7 @@ const S = {
   cards: [], byId: new Map(),
   mem: new Map(), logs: new Map(), expl: new Map(), custom: new Map(), flags: [], insights: null,
   deep: new Map(), streamText: new Map(), pendingQ: new Map(), study: new Map(), studyOpen: null,
+  fb: new Map(), rewrites: new Map(),
   view: "review", session: null, unsaved: false,
   cat: { deck: null, q: "", open: null, flagFor: null },
   add: { note: "", deck: "inb", drafts: [], busy: false, err: "", manual: { kind: "fact", prompt: "", answer: "", points: "" } },
@@ -106,7 +109,7 @@ function saveLocalSoon() {
   localTimer = setTimeout(() => {
     try {
       localStorage.setItem(LS_KEY, JSON.stringify({
-        mem: [...S.mem], logs: [...S.logs], expl: [...S.expl], custom: [...S.custom], flags: S.flags, config: S.config, insights: S.insights, deep: [...S.deep], study: [...S.study],
+        mem: [...S.mem], logs: [...S.logs], expl: [...S.expl], custom: [...S.custom], flags: S.flags, config: S.config, insights: S.insights, deep: [...S.deep], study: [...S.study], fb: [...S.fb],
       }));
     } catch { S.unsaved = true; renderStatus(); }
   }, 250);
@@ -120,12 +123,13 @@ function loadLocal() {
     S.custom = new Map(d.custom || []); S.flags = d.flags || []; S.config = mergeConfig(d.config); S.insights = d.insights || null;
     S.deep = new Map(d.deep || []);
     S.study = new Map(d.study || []);
+    S.fb = new Map(d.fb || []);
   } catch { /* private window or blocked storage: start empty */ }
 }
 async function loadDb() {
   const col = async (name) => (await withTimeout(S.db.collection(name).get())).docs;
-  const [cards, reviews, expl, custom, flags, deep, study, cfg, ins] = await Promise.all([
-    col("cards"), col("reviews"), col("explanations"), col("custom"), col("flags"), col("deepdives"), col("study"),
+  const [cards, reviews, expl, custom, flags, deep, study, fb, cfg, ins] = await Promise.all([
+    col("cards"), col("reviews"), col("explanations"), col("custom"), col("flags"), col("deepdives"), col("study"), col("feedback"),
     withTimeout(S.db.doc("config/scheduler").get()), withTimeout(S.db.doc("insights/latest").get()),
   ]);
   S.mem = new Map(cards.map((d) => [d.id, clone(d.data())]));
@@ -135,6 +139,7 @@ async function loadDb() {
   S.flags = flags.map((d) => ({ id: d.id, ...clone(d.data()) }));
   S.deep = new Map(deep.map((d) => [d.id, clone(d.data())]));
   S.study = new Map(study.map((d) => [d.id, clone(d.data())]));
+  S.fb = new Map(fb.map((d) => [d.id, clone(d.data())]));
   S.config = mergeConfig(cfg.exists ? clone(cfg.data()) : null);
   S.insights = ins.exists ? clone(ins.data()) : null;
 }
@@ -226,6 +231,7 @@ ${tries || "- none recorded"}
 OTHER CARDS IN THE SAME DECK (look for interference or confusable pairs):
 ${near || "- none"}
 
+${calibrationContext(c.deck)}
 Write for someone who knows the field. No definitions of basics, no pep talk. Keep it general: no specific organizations, places, vendors or products unless the card is about one. If attempts have no typed text, infer the likely confusion from the card and its neighbours and say that you are inferring.
 Reply with only JSON:
 {"diagnosis":"1-2 sentences: what they get wrong and why it is tempting","explanation":"at most 120 words","hook":"one memorable handle: a sharp contrast, a concrete workplace example, or a mnemonic","contrast_card":{"prompt":"...","answer":"..."},"rewrite":null}
@@ -238,6 +244,7 @@ function patternsPrompt(missed) {
 Learner: ${LEARNER}
 Deck keys: ${[...DECK_META.values()].map((d) => `${d.deck}=${d.title}`).join("; ")}
 
+${calibrationContext(null)}
 MISSED CARDS:
 ${body}
 
@@ -342,13 +349,54 @@ async function followUp(id, q) {
   persist(`deepdives/${id}`, rec);
   render();
 }
+/** The learner's level marks, as worked examples for any prompt that writes cards. */
+function calibrationContext(deck) {
+  const marked = [...S.fb].filter(([id, f]) => f.level && S.byId.has(id));
+  if (!marked.length) return "";
+  const near = (id) => (S.byId.get(id).deck === deck ? 0 : 1);
+  const sec = (title, lvl) => {
+    const rows = marked.filter(([, f]) => f.level === lvl).sort(([a], [b]) => near(a) - near(b)).slice(0, 4)
+      .map(([id, f]) => `- "${clip(S.byId.get(id).prompt, 170)}"${f.note ? ` (their note: ${clip(f.note, 160)})` : ""}`);
+    return rows.length ? `${title}:\n${rows.join("\n")}\n` : "";
+  };
+  return `\nLEVEL FEEDBACK FROM THE LEARNER. Aim for what they marked just right; avoid what they marked too basic, too detailed or not useful:
+${sec("Just right", "right")}${sec("Too basic for them", "basic")}${sec("Too detailed: trivia they don't need", "detailed")}${sec("Not useful to them", "irrelevant")}`;
+}
+function rewritePrompt(c, level, note) {
+  const why = level === "basic"
+    ? "too basic: they already know it and need a more advanced version"
+    : "too detailed: it tests trivia rather than the principle they need";
+  const aim = level === "basic"
+    ? "tests understanding at a higher level: applying it to a realistic situation, a trade-off, a failure mode, or how it connects to a neighbouring idea. Prefer a concept or judgment card."
+    : "tests the underlying principle, or why it matters, instead of the detail. Drop lists, counts and numbers they don't need.";
+  return `Rewrite this spaced-repetition card for the learner. They marked it ${why}.${note ? ` Their note: "${clip(note, 400)}".` : ""}
+Learner: ${LEARNER}
+
+${cardBlock(c)}
+${calibrationContext(c.deck)}
+Write ONE replacement card on the same topic that ${aim}
+Rules: one idea; a precise prompt with one consistent answer; general, with no real organizations, places, vendors or products unless the card is about one; only claims you are confident are accurate; concept and judgment cards need 2-5 key points.
+Reply with only JSON: {"kind":"concept","prompt":"...","answer":"...","points":["..."],"why":"one sentence on what changed"}`;
+}
+function deckDraftPrompt(deck) {
+  const d = DECK_META.get(deck);
+  const have = S.cards.filter((c) => c.deck === deck && !c.retired).map((c) => `- ${clip(c.prompt, 140)}`).join("\n");
+  return `Draft new spaced-repetition cards for the deck "${d?.title || deck}": ${d?.blurb || ""}
+Learner: ${LEARNER}
+${calibrationContext(deck)}
+CARDS ALREADY IN THIS DECK (don't duplicate them):
+${have || "- none"}
+
+Write 5 new cards that fill gaps at the level the learner wants. General principles and best practice that hold in any organization; no real organizations, places, vendors or products unless a card is about one. Each card tests one idea with a precise prompt and one consistent answer. Mix kinds: "fact", "concept" (2-5 key points), "judgment" (a realistic scenario; 3-5 key points). Only include claims you are confident are accurate, and name a source for each.
+Reply with only JSON: {"cards":[{"kind":"concept","prompt":"...","answer":"...","points":["..."],"source":"..."}]}`;
+}
 function draftPrompt(note) {
   return `Turn this note into spaced-repetition cards for the learner.
 Learner: ${LEARNER}
 Rules: each card tests one idea; the prompt is precise and has one consistent answer; no yes/no prompts; prefer why/how/when over bare what when the note supports it. Use only what the note states or directly implies. Add no outside facts.
 Make every card broadly applicable: extract the transferable principle, and leave out the names of the organization, its people, departments, systems, vendors and places. A card should make sense to a data professional anywhere.
 Kinds: "fact" (short recall), "concept" (explain in a few sentences; give 2-5 points), "judgment" (a realistic scenario needing a decision; give 3-5 points).
-
+${calibrationContext(S.add.deck)}
 NOTE:
 """${note}"""
 
@@ -362,7 +410,7 @@ function cleanCard(x) {
   const prompt = str(x.prompt, 400).trim(), answer = str(x.answer, 1500).trim();
   if (!prompt || !answer) return null;
   const points = Array.isArray(x.points) ? x.points.map((p) => str(p, 200).trim()).filter(Boolean).slice(0, 6) : [];
-  return { kind, prompt, answer, points, deck: DECK_META.has(x.deck) ? x.deck : undefined };
+  return { kind, prompt, answer, points, deck: DECK_META.has(x.deck) ? x.deck : undefined, source: str(x.source, 300).trim(), change: str(x.why, 300).trim() };
 }
 
 // ---------- session ----------
@@ -487,13 +535,65 @@ async function explain(id) {
   persist(`explanations/${id}`, rec);
   render();
 }
-function addCustom(card, origin, deck) {
+function addCustom(card, origin, deck, extra = {}) {
   const id = uid("u");
-  const rec = { id, deck: deck || card.deck || "inb", kind: card.kind, prompt: card.prompt, answer: card.answer, points: card.points || [], source: card.source || `${origin}, ${today()}`, origin, createdAt: Date.now() };
+  const rec = { id, deck: deck || card.deck || "inb", kind: card.kind, prompt: card.prompt, answer: card.answer, points: card.points || [], source: card.source || `${origin}, ${today()}`, origin, createdAt: Date.now(), ...extra };
   S.custom.set(id, rec);
   persist(`custom/${id}`, rec);
   assembleCards();
   return id;
+}
+function setLevel(id, level) {
+  const c = S.byId.get(id);
+  if (!c) return;
+  const prev = S.fb.get(id) || {};
+  const next = prev.level === level ? null : level;
+  const rec = { level: next, note: prev.note || "", at: Date.now(), deck: c.deck, kind: c.kind, prompt: clip(c.prompt, 300), history: [...(prev.history || []).slice(-9), { level: next, at: Date.now() }] };
+  S.fb.set(id, rec);
+  persist(`feedback/${id}`, rec);
+  if (!next || next === "right" || next === "irrelevant") S.rewrites.delete(id);
+  render();
+}
+function saveLevelNote(id, note) {
+  const rec = S.fb.get(id);
+  if (!rec) return;
+  rec.note = str(note, 500).trim();
+  rec.at = Date.now();
+  persist(`feedback/${id}`, rec);
+  toast("Note saved. It steers the cards Claude writes for you.");
+}
+async function rewriteLevel(id) {
+  const c = S.byId.get(id), f = S.fb.get(id);
+  if (!c || !claudeReady() || !["basic", "detailed"].includes(f?.level)) return;
+  markPause(id);
+  const out = await ask(`rewrite:${id}`, rewritePrompt(c, f.level, f.note), { cache: false });
+  if (!out) return;
+  const card = cleanCard(out);
+  if (!card) S.errs.set(`rewrite:${id}`, "Claude's rewrite came back incomplete. Try again.");
+  else S.rewrites.set(id, card);
+  render();
+}
+function acceptRewrite(id) {
+  const c = S.byId.get(id), rw = S.rewrites.get(id), f = S.fb.get(id);
+  if (!c || !rw) return;
+  addCustom({ ...rw, source: `${c.source || "—"} · rewritten by Claude for your level` }, "Rewritten for your level", c.deck, { replaces: id, verify: true, level: f?.level || null });
+  const m = { ...(S.mem.get(id) || blankMemory(Date.now())), suspended: true };
+  S.mem.set(id, m);
+  persist(`cards/${id}`, m);
+  if (S.session) S.session.queue = S.session.queue.filter((q) => q !== id || q === S.session.current);
+  S.rewrites.delete(id);
+  toast("New version added as a new card. The original won't come back.");
+  render();
+}
+async function deckDraft(deck) {
+  if (!claudeReady() || !DECK_META.has(deck)) return;
+  const out = await ask(`deckdraft:${deck}`, deckDraftPrompt(deck), { cache: false });
+  if (!out) return;
+  S.add.drafts = (Array.isArray(out.cards) ? out.cards : []).map(cleanCard).filter(Boolean).slice(0, 5).map((d) => ({ ...d, generated: true }));
+  S.add.drafted = true;
+  S.add.origin = "deck";
+  S.add.deck = deck;
+  location.hash = "add";
 }
 function useRewrite(id) {
   const x = S.expl.get(id);
@@ -605,6 +705,7 @@ function backSide(c, m) {
 ${g ? `<div class="grade v${g.rating || 0}"><span class="lbl">Claude's evaluation</span>${g.rating ? `<p class="verdict">${VERDICT[g.rating]}</p>` : ""}<p>${esc(g.feedback)}</p>${g.wrong ? `<p class="wrong"><b>Not right:</b> ${esc(g.wrong)}</p>` : ""}</div>` : ""}
 ${sess.typed.trim() ? `<div class="yours"><span class="lbl">You wrote</span><p>${fmt(sess.typed.trim())}</p></div>` : ""}
 <div class="answer"><span class="lbl">Answer</span><p>${fmt(c.answer)}</p>${points}${c.why ? `<p class="why">${fmt(c.why)}</p>` : ""}</div>
+${levelRow(c)}
 ${deepBlock(c)}
 ${x ? explanationBlock(c, x) : ""}
 <p class="source">Source: ${esc(c.source || "—")}</p>
@@ -680,6 +781,34 @@ ${fbusy ? `<div class="fq"><p class="q">${esc(S.pendingQ.get(id) || "")}</p><div
 ${rec && claudeReady() ? `<form class="followup" data-form="followup" data-id="${id}"><label class="sr" for="fq-${id}">Ask a follow-up question</label><input id="fq-${id}" name="q" type="text" placeholder="Ask a follow-up question" autocomplete="off"><button class="btn" type="submit" ${fbusy ? "disabled" : ""}>Ask</button></form>` : ""}
 ${err ? `<p class="err">${esc(err)}</p>` : ""}</div>`;
 }
+function levelRow(c) {
+  const f = S.fb.get(c.id), lv = f?.level, rw = S.rewrites.get(c.id), m = S.mem.get(c.id);
+  const busy = S.busy.has(`rewrite:${c.id}`), err = S.errs.get(`rewrite:${c.id}`), can = claudeReady();
+  const follow = {
+    basic: [can && ["rewrite-level", "Rewrite it harder"], !m?.suspended && ["suspend", "Stop showing (I know this)"]],
+    detailed: [can && ["rewrite-level", "Rewrite around the principle"], !m?.suspended && ["suspend", "Stop showing"]],
+    irrelevant: [!m?.suspended && ["suspend", "Stop showing"]],
+  }[lv] || [];
+  return `<div class="level"><div class="level-row" role="group" aria-label="Is this card at the right level for you?"><span class="lbl inline">Level</span>
+${LEVELS.map(([k, t]) => `<button type="button" class="pill-btn${lv === k ? " on" : ""}" data-act="level" data-id="${c.id}" data-level="${k}" aria-pressed="${lv === k}">${t}</button>`).join("")}</div>
+${lv ? `<div class="row small">${follow.filter(Boolean).map(([a, t]) => `<button type="button" class="btn ghost" data-act="${a}" data-id="${c.id}" ${a === "rewrite-level" && busy ? "disabled" : ""}>${a === "rewrite-level" && busy ? "Claude is rewriting…" : t}</button>`).join("")}
+<form class="level-note" data-form="level-note" data-id="${c.id}"><label class="sr" for="ln-${c.id}">What would make it better?</label><input id="ln-${c.id}" name="note" type="text" placeholder="Optional: what would be more useful?" value="${esc(f?.note || "")}" autocomplete="off"><button class="btn ghost" type="submit">Save note</button></form></div>` : ""}
+${err ? `<p class="err">${esc(err)}</p>` : ""}${rw ? rewritePreview(c, rw) : ""}</div>`;
+}
+function rewritePreview(c, rw) {
+  return `<div class="rewrite"><span class="lbl">Claude's rewrite · ${esc(rw.kind)}</span>${rw.change ? `<p class="muted">${esc(rw.change)}</p>` : ""}
+<p class="prompt sm">${fmt(rw.prompt)}</p><p>${fmt(rw.answer)}</p>${rw.points.length ? `<ol class="points">${rw.points.map((p) => `<li><span>${fmt(p)}</span></li>`).join("")}</ol>` : ""}
+<div class="row small"><button type="button" class="btn primary" data-act="rewrite-accept" data-id="${c.id}">Use this instead</button><button type="button" class="btn ghost" data-act="rewrite-level" data-id="${c.id}" ${S.busy.has(`rewrite:${c.id}`) ? "disabled" : ""}>Try another</button><button type="button" class="btn ghost" data-act="rewrite-discard" data-id="${c.id}">Keep the original</button></div>
+<p class="muted">The new version starts as a new card, marked verify because Claude wrote it. The original stops showing, and its history is kept.</p></div>`;
+}
+function deckLevelLine(deck) {
+  const n = { basic: 0, right: 0, detailed: 0, irrelevant: 0 };
+  for (const [id, f] of S.fb) if (f.level && S.byId.get(id)?.deck === deck) n[f.level]++;
+  const parts = LEVELS.filter(([k]) => n[k]).map(([k, t]) => `${n[k]} ${t.toLowerCase()}`);
+  const busy = S.busy.has(`deckdraft:${deck}`), err = S.errs.get(`deckdraft:${deck}`);
+  return `<div class="row small"><span class="muted">${parts.length ? `Your level marks here: ${parts.join(" · ")}.` : "No level marks in this deck yet. Mark cards as you review and new drafts follow them."}</span>
+${claudeReady() ? `<button type="button" class="btn" data-act="deck-draft" data-deck="${deck}" ${busy ? "disabled" : ""}>${busy ? "Drafting…" : "Draft more cards at my level"}</button>` : ""}</div>${err ? `<p class="err">${esc(err)}</p>` : ""}`;
+}
 function explanationBlock(c, x) {
   return `<div class="tailored"><span class="lbl">Aimed at your misses · ${esc(new Date(x.at).toLocaleDateString())}</span>
 ${x.diagnosis ? `<p><b>${esc(x.diagnosis)}</b></p>` : ""}<p>${fmt(x.explanation)}</p>${x.hook ? `<p class="hook">${fmt(x.hook)}</p>` : ""}
@@ -737,7 +866,7 @@ function viewCatalog() {
   return `<section class="panel"><div class="row between"><h2>Catalog</h2><label class="search"><span class="sr">Search cards</span><input id="cat-q" type="search" placeholder="Search prompts and answers" value="${esc(S.cat.q)}"></label></div>
 <div class="drawers">${decks.map((d) => { const s = deckStats(d.deck); return `<button type="button" class="drawer${S.cat.deck === d.deck && !q ? " on" : ""}" data-act="deck" data-deck="${d.deck}"><span class="callno">${d.code}</span><span class="dname">${esc(d.title)}</span><span class="dmeta">${s.total} cards: ${masterySummary(S.cards.filter((c) => c.deck === d.deck))}</span></button>`; }).join("")}</div>
 <p class="muted">Mastery is how long you'd likely still recall a card: <b>learning</b> (days), <b>familiar</b> (up to 3 weeks), <b>solid</b> (up to 3 months), <b>mastered</b> (longer). Reviews raise it; misses lower it.</p>
-${S.cat.deck && !q ? `<p class="blurb">${esc(DECK_META.get(S.cat.deck)?.blurb || "")}</p>` : ""}
+${S.cat.deck && !q ? `<p class="blurb">${esc(DECK_META.get(S.cat.deck)?.blurb || "")}</p>${deckLevelLine(S.cat.deck)}` : ""}
 ${list.length ? `<ul class="cardlist">${list.map(cardRow).join("")}</ul>` : q ? `<p class="muted">No cards match “${esc(S.cat.q)}”.</p>` : `<p class="muted">Open a drawer to browse its cards.</p>`}</section>`;
 }
 function cardRow(c) {
@@ -748,6 +877,7 @@ function cardRow(c) {
   return `<li class="crow${open ? " open" : ""}"><button type="button" class="crow-head" data-act="open" data-id="${c.id}" aria-expanded="${open}"><span class="callno">${esc(callNumber(c))}</span><span class="cprompt">${esc(clip(c.prompt, 110))}</span><span class="cmeta">${st}${m?.agains ? ` · missed ${m.agains}×` : ""}${S.deep.has(c.id) ? " · deeper dive saved" : ""}</span></button>
 ${open ? `<div class="cdetail">${cardHead(c)}<p class="prompt sm">${fmt(c.prompt)}</p><p>${fmt(c.answer)}</p>${c.points?.length ? `<ol class="points">${c.points.map((p) => `<li><span>${fmt(p)}</span></li>`).join("")}</ol>` : ""}${c.why ? `<p class="why">${fmt(c.why)}</p>` : ""}
 ${deepBlock(c)}${S.expl.get(c.id) ? explanationBlock(c, S.expl.get(c.id)) : ""}<p class="source">Source: ${esc(c.source || "—")}${m && !isNew(m) ? ` · reviewed ${m.reps}×` : ""}</p>
+${levelRow(c)}
 ${cardActions(c, m, S.expl.get(c.id), (m?.agains || 0) >= 1, S.busy.has("explain:" + c.id))}
 ${S.errs.get("explain:" + c.id) ? `<p class="err">${esc(S.errs.get("explain:" + c.id))}</p>` : ""}${S.cat.flagFor === c.id ? flagForm(c.id) : ""}</div>` : ""}</li>`;
 }
@@ -764,7 +894,7 @@ function viewAdd() {
 <div class="row"><label class="lbl inline" for="add-deck">Deck</label><select id="add-deck">${deckOptions(a.deck)}</select>
 ${claudeReady() ? `<button type="button" class="btn primary" data-act="draft" ${busy || !a.note.trim() ? "disabled" : ""}>${busy ? "Drafting…" : "Draft cards"}</button>` : `<span class="muted">Claude is off. Use the manual form below.</span>`}</div>
 ${S.errs.get("draft") ? `<p class="err">${esc(S.errs.get("draft"))}</p>` : ""}
-${a.drafts.length ? `<div class="drafts">${a.drafts.map((d, i) => draftEditor(d, i)).join("")}</div>` : a.drafted ? `<p class="muted">Nothing in that note seemed worth a card.</p>` : ""}
+${a.drafts.length ? `${a.origin === "deck" ? `<p class="muted">Drafted for ${esc(DECK_META.get(a.deck)?.title || a.deck)} at the level your marks point to. Claude wrote these from its own knowledge, so they're marked verify once added. Edit anything before adding.</p>` : ""}<div class="drafts">${a.drafts.map((d, i) => draftEditor(d, i)).join("")}</div>` : a.drafted ? `<p class="muted">Nothing in that note seemed worth a card.</p>` : ""}
 </section>
 <section class="panel"><h2>Write a card yourself</h2>${draftEditor({ ...a.manual, points: a.manual.points }, "m")}</section>`;
 }
@@ -775,6 +905,8 @@ function draftEditor(d, i) {
 <label class="lbl" for="dp-${i}">Prompt</label><textarea id="dp-${i}" name="prompt" rows="2">${esc(d.prompt)}</textarea>
 <label class="lbl" for="da-${i}">Answer</label><textarea id="da-${i}" name="answer" rows="3">${esc(d.answer)}</textarea>
 <label class="lbl" for="dpt-${i}">Key points, one per line (concept and judgment cards are graded against these)</label><textarea id="dpt-${i}" name="points" rows="3">${esc(pts)}</textarea>
+<label class="lbl" for="ds-${i}">Source</label><input id="ds-${i}" name="source" type="text" value="${esc(d.source || "")}" placeholder="Optional: where this comes from">
+<input type="hidden" name="generated" value="${d.generated ? "1" : ""}">
 <div class="row small"><button class="btn primary" type="submit">Add to ${esc(DECK_META.get(S.add.deck)?.code || "INB")}</button>${i !== "m" ? `<button class="btn ghost" type="button" data-act="discard" data-i="${i}">Discard</button>` : ""}</div></form>`;
 }
 
@@ -796,6 +928,7 @@ function studyDetail(c) {
 <div class="answer"><span class="lbl">Answer</span><p>${fmt(c.answer)}</p>${c.points?.length ? `<ol class="points">${c.points.map((p) => `<li><span>${fmt(p)}</span></li>`).join("")}</ol>` : ""}${c.why ? `<p class="why">${fmt(c.why)}</p>` : ""}</div>
 ${deepBlock(c)}${x ? explanationBlock(c, x) : ""}
 <p class="source">Source: ${esc(c.source || "—")}</p>
+${levelRow(c)}
 <div class="row small">${can && !S.deep.has(c.id) && !S.busy.has("deep:" + c.id) ? `<button type="button" class="btn primary" data-act="deep" data-id="${c.id}">Go deeper</button>` : ""}
 ${can && (m?.agains || 0) >= 1 ? `<button type="button" class="btn ghost" data-act="explain" data-id="${c.id}" ${S.busy.has("explain:" + c.id) ? "disabled" : ""}>${S.busy.has("explain:" + c.id) ? "Claude is diagnosing…" : x ? "Re-diagnose my misses" : "Why do I keep missing this?"}</button>` : ""}
 <button type="button" class="btn ghost" data-act="study-remove" data-id="${c.id}">Remove from Study</button>
@@ -903,6 +1036,10 @@ ${revs.map((r, i) => `<tr><td>${i + 1}</td><td class="num">${r.day}</td><td clas
 <p>Review is for recalling what you already understand; that's what the scheduler optimizes. When a card shows you don't really understand something, switch to studying. <b>Go deeper</b> starts an explanation aimed at your answer, and the card is saved to the <b>Study</b> tab, where you can keep asking questions for as long as you like. Nothing in Study changes the schedule. The review card waits until you press <b>Next</b>, even if you leave for Study, and the time doesn't count as review time.</p>
 <p>After studying, rate honestly. If you didn't really know it, press <b>Change rating</b> and pick <b>Partly</b> or <b>Didn't know</b>, so the card comes back soon and tests the understanding you just built.</p>
 
+<h3>Calibrating the cards</h3>
+<p>Under each answer, mark the card's level: <b>Too basic</b>, <b>Just right</b>, <b>Too detailed</b> or <b>Not useful</b>. It's one tap, and you can add a note. Too basic or too detailed offers a rewrite: Claude drafts a harder or more principle-focused version for you to accept or discard. An accepted rewrite starts as a new card and the original retires. Your marks also steer every card Claude writes for you: rewrites, drafts from your notes, and <b>Draft more cards at my level</b> in each Catalog deck.</p>
+<p>There's no "too hard". If a relevant card is hard, it's the one to practise; that's the scheduler's job. If it's hard because it's trivia you don't need, mark it too detailed.</p>
+
 <h3>What Claude's verdict does</h3>
 <div class="scroll"><table><thead><tr><th>Verdict</th><th>Counts as</th><th>What happens</th></tr></thead><tbody>
 <tr><td>Not yet</td><td>Didn't know</td><td>Stability drops. The card comes back in 10 minutes for one more try.</td></tr>
@@ -935,6 +1072,7 @@ ${revs.map((r, i) => `<tr><td>${i + 1}</td><td class="num">${r.day}</td><td clas
 <dl>
 <dt>Go deeper</dt><dd>A longer explanation aimed at your answer. Ask follow-up questions under it. It's saved to the Study tab.</dd>
 <dt>Study later</dt><dd>Saves the card to the Study tab without exploring it now.</dd>
+<dt>Level</dt><dd>Too basic, Just right, Too detailed, Not useful. Tells Claude what level of card you need, and offers a rewrite or retirement.</dd>
 <dt>Why do I keep missing this?</dt><dd>Appears after a miss. Claude looks at all your attempts on the card and explains the specific confusion.</dd>
 <dt>Report a problem</dt><dd>The card is wrong, unclear or not useful. Claude fixes or retires reported cards when you ask it to review your learning.</dd>
 <dt>Stop showing</dt><dd>Takes the card out of your reviews. Bring it back from the Catalog.</dd>
@@ -1038,7 +1176,7 @@ function wireCurve(host, c, W) {
   };
 }
 
-const SESSION_PROMPT = `Review my learning in the Card Catalog artifact. Read its db (reviews, cards, flags, explanations, deepdives, custom, config/scheduler) with ArtifactData. Fix or retire flagged deck cards in decks/ and resolve the flags. If there are enough reviews, run tools/optimize.py and write the fitted parameters and per-kind retention to config/scheduler. Write what you found to insights/latest. Rebuild, run the tests, republish, and tell me what changed and why.`;
+const SESSION_PROMPT = `Review my learning in the Card Catalog artifact. Read its db (reviews, cards, flags, feedback, explanations, deepdives, study, custom, config/scheduler) with ArtifactData. Fix or retire flagged deck cards in decks/ and resolve the flags. Use the level feedback to rewrite, retire or add deck cards at the level I marked "just right". If there are enough reviews, run tools/optimize.py and write the fitted parameters and per-kind retention to config/scheduler. Write what you found to insights/latest. Rebuild, run the tests, republish, and tell me what changed and why.`;
 
 // ---------- events ----------
 function route() {
@@ -1055,6 +1193,11 @@ document.addEventListener("click", async (ev) => {
   switch (act) {
     case "reveal": return reveal();
     case "deep": return goDeeper(id);
+    case "level": return setLevel(id, el.dataset.level);
+    case "rewrite-level": return rewriteLevel(id);
+    case "rewrite-accept": return acceptRewrite(id);
+    case "rewrite-discard": S.rewrites.delete(id); return render();
+    case "deck-draft": return deckDraft(el.dataset.deck);
     case "study-save": setStudy(id, true); saveDraft(); return render();
     case "study-open": ev.preventDefault(); S.studyOpen = id; saveDraft(); if (location.hash !== "#study") location.hash = "study"; else render(); return;
     case "study-close": S.studyOpen = null; saveDraft(); return render();
@@ -1076,7 +1219,7 @@ document.addEventListener("click", async (ev) => {
       const note = S.add.note.trim();
       if (!note) return;
       const out = await ask("draft", draftPrompt(note.slice(0, 12000)));
-      if (out) { S.add.drafts = (Array.isArray(out.cards) ? out.cards : []).map(cleanCard).filter(Boolean).slice(0, 5); S.add.drafted = true; }
+      if (out) { S.add.drafts = (Array.isArray(out.cards) ? out.cards : []).map(cleanCard).filter(Boolean).slice(0, 5); S.add.drafted = true; S.add.origin = "note"; }
       return render();
     }
     case "discard": S.add.drafts.splice(Number(el.dataset.i), 1); return render();
@@ -1130,6 +1273,10 @@ document.addEventListener("submit", (ev) => {
   if (!form) return;
   ev.preventDefault();
   const fd = new FormData(form);
+  if (form.dataset.form === "level-note") {
+    saveLevelNote(form.dataset.id, String(fd.get("note") || ""));
+    return;
+  }
   if (form.dataset.form === "followup") {
     followUp(form.dataset.id, String(fd.get("q") || ""));
     return;
@@ -1140,11 +1287,12 @@ document.addEventListener("submit", (ev) => {
     return render();
   }
   if (form.dataset.form === "draft") {
-    const c = cleanCard({ kind: fd.get("kind"), prompt: fd.get("prompt"), answer: fd.get("answer"), points: String(fd.get("points") || "").split("\n") });
+    const c = cleanCard({ kind: fd.get("kind"), prompt: fd.get("prompt"), answer: fd.get("answer"), points: String(fd.get("points") || "").split("\n"), source: String(fd.get("source") || "") });
+    const generated = fd.get("generated") === "1";
     if (!c) return toast("A card needs a prompt and an answer.");
     if (c.kind !== "fact" && c.points.length < 2) return toast("Concept and judgment cards need at least two key points to be graded.");
     const i = form.dataset.i;
-    addCustom(c, i === "m" ? "Written by you" : "Drafted by Claude from your note", S.add.deck);
+    addCustom(c, i === "m" ? "Written by you" : generated ? "Drafted by Claude for your level" : "Drafted by Claude from your note", S.add.deck, generated ? { verify: true } : {});
     if (i === "m") S.add.manual = { kind: "fact", prompt: "", answer: "", points: "" }; else S.add.drafts.splice(Number(i), 1);
     toast(`Added to ${DECK_META.get(S.add.deck)?.code}. It enters your queue as a new card.`);
     return render();
@@ -1184,7 +1332,7 @@ async function exportData() {
     cards: S.cards.map(({ id, deck, kind, prompt, answer, points, source, custom, edited, retired }) => ({ id, deck, kind, prompt, answer, points, source, custom: !!custom, edited: !!edited, retired: !!retired })),
     memory: Object.fromEntries(S.mem),
     reviews: [...S.logs.entries()].flatMap(([day, items]) => items.map((x) => ({ day, ...x }))),
-    explanations: Object.fromEntries(S.expl), deepdives: Object.fromEntries(S.deep), flags: S.flags, insights: S.insights,
+    explanations: Object.fromEntries(S.expl), deepdives: Object.fromEntries(S.deep), feedback: Object.fromEntries(S.fb), flags: S.flags, insights: S.insights,
   };
   const json = JSON.stringify(data, null, 1);
   if (S.downloads) {

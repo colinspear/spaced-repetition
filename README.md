@@ -29,6 +29,8 @@ It is built on Patrick Collison's [suggestion](https://x.com/patrickc/status/211
 5. **Mastery** is how long you'd likely still recall a card: learning (days), familiar (up to 3 weeks), solid (up to 3 months), mastered (longer).
 6. **Report a problem** saves a note for the next "review my learning" session, which fixes or retires the card. **Stop showing** takes a card out of your reviews; bring it back from the Catalog.
 
+7. **Level** (Too basic, Just right, Too detailed, Not useful) calibrates the content, not the schedule. Too basic or too detailed offers a Claude rewrite to accept or discard; an accepted rewrite becomes a new card and the original retires. The marks go into every prompt where Claude writes cards, as worked examples, and each Catalog deck has **Draft more cards at my level**. There's deliberately no "too hard": difficulty is the scheduler's job.
+
 The count is in cards, not reviews: each card today is either done, to go, or coming back.
 
 You can skip typing with **Skip to the answer** and rate yourself, for low-energy days.
@@ -100,6 +102,6 @@ python -m venv .venv && .venv/bin/pip install "fsrs[optimizer]==6.3.2"
 | `tools/optimize.py` | Held-out refit and optimal retention, producing a config patch |
 | `tools/smoke.mjs` | Browser smoke test |
 
-Artifact database layout: `cards/{id}` (memory state), `reviews/{YYYY-MM-DD}` (that day's review log), `explanations/{id}`, `deepdives/{id}`, `study/{id}`, `custom/{id}` (added or rewritten cards), `flags/{id}`, `config/scheduler`, `insights/latest`.
+Artifact database layout: `cards/{id}` (memory state), `reviews/{YYYY-MM-DD}` (that day's review log), `explanations/{id}`, `deepdives/{id}`, `study/{id}`, `feedback/{id}` (level marks), `custom/{id}` (added or rewritten cards), `flags/{id}`, `config/scheduler`, `insights/latest`.
 
 To update the published page from another Claude session, rebuild and publish `dist/card-catalog.html` to the artifact URL above.
