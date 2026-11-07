@@ -226,6 +226,20 @@ await lv.locator('.drafts form button[type="submit"]').first().click();
 const drafted = await lv.evaluate(() => [...window.__mock.docs.values()].filter((v) => v.origin === "Drafted by Claude for your level"));
 assert.equal(drafted.length, 1); assert.equal(drafted[0].verify, true); assert.equal(drafted[0].source, "Governance practice");
 
+// Focus a deck: the card on screen stays, the next new card comes from that deck
+const fx = await newPage({ viewport: { width: 800, height: 900 } });
+const onScreen = (await fx.textContent(".callno")).trim();
+await fx.evaluate(() => (location.hash = "catalog"));
+await fx.click('[data-deck="arc"]');
+await fx.click('[data-act="focus-deck"]');
+assert.deepEqual(await fx.evaluate(() => window.__mock.docs.get("config/scheduler").focusDecks), ["arc"]);
+await fx.evaluate(() => (location.hash = "review"));
+await fx.waitForSelector(".index-card");
+assert.equal((await fx.textContent(".callno")).trim(), onScreen, "card on screen is kept");
+await fx.click('[data-act="reveal"]');
+await fx.click(".rate-btn.r3");
+assert.equal((await fx.textContent(".callno")).trim(), "ARC·01");
+
 // 3. Explain flow for a missed card (seeded memory with misses).
 const ex = await newPage({ viewport: { width: 800, height: 900 } }, true, () => {
   const now = Date.now();

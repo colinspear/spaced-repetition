@@ -1,0 +1,282 @@
+{
+  "deck": "arc",
+  "code": "ARC",
+  "title": "Data architecture",
+  "blurb": "Principles and paradigms, from warehouses and lakes to streams and meshes: what each one is, what it trades away, and why a data leader should care.",
+  "cards": [
+    {
+      "id": "arc-01",
+      "kind": "fact",
+      "prompt": "Inmon's definition of a data warehouse: its four properties.",
+      "answer": "Subject-oriented, integrated, time-variant, non-volatile.",
+      "why": "Why it matters: it's the test of whether a 'warehouse' really is one. A pile of copied tables that isn't integrated, or keeps no history, is a staging area whatever it's called.",
+      "source": "W. H. Inmon, Building the Data Warehouse (1992)"
+    },
+    {
+      "id": "arc-02",
+      "kind": "concept",
+      "prompt": "Inmon vs Kimball: how does each build a warehouse, and what does each trade away?",
+      "answer": "Inmon builds top-down: an integrated, normalized enterprise warehouse first, with dimensional marts derived from it. It is consistent from the start but slow and costly before it delivers. Kimball builds bottom-up: a dimensional mart for one business process at a time, tied together by conformed dimensions (the bus architecture). It delivers value early, but stays integrated only if the conformed dimensions are governed.",
+      "points": [
+        "Inmon: normalized enterprise warehouse first, marts downstream",
+        "Kimball: process-by-process star schemas joined by conformed dimensions",
+        "Inmon trades speed to value for upfront integration",
+        "Kimball trades upfront integration for speed; consistency depends on governing the shared dimensions"
+      ],
+      "why": "Why it matters: most real warehouses are hybrids. The leadership question is where integration is enforced, and who owns the shared dimensions.",
+      "source": "Inmon (1992); Kimball & Ross, The Data Warehouse Toolkit"
+    },
+    {
+      "id": "arc-03",
+      "kind": "concept",
+      "prompt": "Schema-on-write vs schema-on-read: where does each put the cost of structure, and what is the classic failure of schema-on-read?",
+      "answer": "Schema-on-write validates and structures data as it is loaded, as in a warehouse. The cost is paid up front, and queries are fast and trustworthy. Schema-on-read stores data raw and applies structure at query time, as in a data lake. Ingestion is fast and flexible, but every consumer pays the cost of interpretation, often in different ways. The classic failure is the data swamp: lots of raw data that nobody can find, trust or interpret consistently.",
+      "points": [
+        "Write: structure and validate at load; cost up front",
+        "Read: store raw, interpret at query; cost pushed to every consumer",
+        "Read invites inconsistent interpretations",
+        "Failure mode: the data swamp"
+      ],
+      "why": "Why it matters: schema-on-read moves governance work downstream; it doesn't remove it. Without a catalog, owners and quality rules, a lake becomes a swamp.",
+      "source": "General; DAMA-DMBOK2 ch. 11"
+    },
+    {
+      "id": "arc-04",
+      "kind": "concept",
+      "prompt": "ETL vs ELT: what made ELT the default, and what new risk does it bring?",
+      "answer": "Cheap, elastic storage and compute in the target platform. With ELT you load raw data first and transform it inside the warehouse or lakehouse. Raw history is kept, transformations become versioned code you can rerun, and new questions don't need a new extract. The risk is that raw data, sensitive fields included, lands in the analytical platform before anyone has cleaned, masked or classified it.",
+      "points": [
+        "Enabler: scalable storage and compute in the target",
+        "Load raw, transform in place",
+        "Benefits: raw history kept; transformations versioned and rerunnable",
+        "Risk: sensitive raw data lands before masking or classification"
+      ],
+      "why": "Why it matters: under ELT, access control and classification of the raw layer become a governance requirement, not an afterthought.",
+      "source": "General data-engineering practice"
+    },
+    {
+      "id": "arc-05",
+      "kind": "concept",
+      "prompt": "What is a lakehouse, and what does it add to a plain data lake?",
+      "answer": "A lakehouse keeps data in open file formats on cheap object storage, as a lake does, and adds a table layer with warehouse features: ACID transactions, schema enforcement and evolution, versioning (time travel) and performance indexing. BI and machine learning can then work from one governed copy instead of a lake plus a separate warehouse.",
+      "points": [
+        "Open formats on object storage (lake economics)",
+        "A table layer adds ACID transactions and schema enforcement",
+        "Versioning and time travel",
+        "One copy serves BI and ML, instead of a lake plus a warehouse"
+      ],
+      "why": "Why it matters: fewer copies means fewer places for definitions and access rules to drift, but only if governance is applied at the table layer.",
+      "source": "Armbrust et al., Lakehouse: A New Generation of Open Platforms (CIDR 2021)"
+    },
+    {
+      "id": "arc-06",
+      "kind": "fact",
+      "prompt": "Medallion architecture: what belongs in the bronze, silver and gold layers?",
+      "answer": "Bronze: raw data as ingested, kept for replay and audit. Silver: cleaned, validated, deduplicated and conformed data. Gold: business-level, consumption-ready tables and aggregates for specific uses.",
+      "why": "Why it matters: each layer is a natural home for a different control. Access and retention at bronze, quality rules at silver, certified definitions and ownership at gold.",
+      "source": "Common lakehouse practice; also called raw, cleansed and curated zones"
+    },
+    {
+      "id": "arc-07",
+      "kind": "concept",
+      "prompt": "Lambda vs Kappa architecture: what problem does each solve, and what does Kappa remove?",
+      "answer": "Lambda runs two paths. A batch layer recomputes complete, correct results, and a speed layer gives fast, approximate ones; the two are merged when results are served. The cost is the same logic written and maintained twice. Kappa uses a single stream-processing path over a durable, replayable log. To reprocess, you replay the log through new code, which removes the duplicate batch codebase.",
+      "points": [
+        "Lambda: batch layer (complete) plus speed layer (fast), merged when served",
+        "Cost: duplicate logic in two codebases that can diverge",
+        "Kappa: one streaming path over a replayable log",
+        "Reprocessing means replaying the log"
+      ],
+      "why": "Why it matters: two codebases for one metric means two answers waiting to happen. Before paying for either, ask whether anyone needs real time at all.",
+      "source": "Nathan Marz (2011); Jay Kreps, Questioning the Lambda Architecture (2014)"
+    },
+    {
+      "id": "arc-08",
+      "kind": "concept",
+      "prompt": "The CAP theorem: what does it actually say, and what does PACELC add?",
+      "answer": "If a network partition splits a distributed data system, the system must choose between consistency (every read sees the latest write) and availability (every request gets an answer). It cannot guarantee both during the partition. PACELC adds that even without a partition, there is a trade-off between latency and consistency.",
+      "points": [
+        "It applies during a network partition",
+        "Choose consistency or availability, not both",
+        "It is not 'pick any two of three' at all times",
+        "PACELC: otherwise, latency vs consistency"
+      ],
+      "why": "Why it matters: an eventually consistent system can show different users different numbers for a while. That's a design choice someone should own, and reports should say so.",
+      "source": "Brewer (2000); Gilbert & Lynch (2002); Abadi, PACELC (2012)"
+    },
+    {
+      "id": "arc-09",
+      "kind": "concept",
+      "prompt": "Why did separating storage from compute change data architecture?",
+      "answer": "Storage and compute now scale and are paid for separately. Data sits once in cheap storage, and many engines or teams spin compute up and down over it. That made keeping raw history affordable, made ELT practical, let teams isolate their workloads from each other, and turned cost into a per-query, per-team question.",
+      "points": [
+        "Independent scaling and pricing",
+        "One copy, many engines and workloads",
+        "Raw history becomes affordable; ELT becomes practical",
+        "Workload isolation",
+        "Cost becomes per query and per team"
+      ],
+      "why": "Why it matters: when cost follows usage, cost transparency and chargeback become governance topics.",
+      "source": "General cloud data-platform practice"
+    },
+    {
+      "id": "arc-10",
+      "kind": "fact",
+      "prompt": "Row-oriented vs column-oriented storage: which serves transactions, which serves analytics, and why?",
+      "answer": "Row stores serve transactional systems: they read and write whole records quickly. Column stores serve analytics: queries scan a few columns across many rows, and keeping each column together compresses well and lets the engine skip data it doesn't need.",
+      "why": "Open columnar file formats (such as Parquet) let many tools read the same data, which limits lock-in.",
+      "source": "Standard database texts"
+    },
+    {
+      "id": "arc-11",
+      "kind": "concept",
+      "prompt": "Log-based change data capture vs polling a 'last updated' timestamp: what does polling miss?",
+      "answer": "Polling misses hard deletes and any intermediate changes between polls. It depends on every writer setting the timestamp correctly, and it puts query load on the source. Log-based change data capture reads the database's transaction log, so it captures every insert, update and delete, in order, with little load on the source.",
+      "points": [
+        "Polling misses deletes",
+        "Polling misses intermediate changes",
+        "It relies on timestamps being maintained",
+        "It loads the source",
+        "Log-based CDC: every change, in order, low impact"
+      ],
+      "why": "Why it matters: missed deletes are a quiet source of wrong counts, and they can break retention and deletion obligations downstream.",
+      "source": "Kleppmann, Designing Data-Intensive Applications (2017), ch. 11"
+    },
+    {
+      "id": "arc-12",
+      "kind": "concept",
+      "prompt": "Data vault: what are hubs, links and satellites, and what is the model designed for?",
+      "answer": "Hubs hold business keys. Links hold relationships between business keys. Satellites hold descriptive attributes with their full history. The design favors auditability, loading in parallel, and absorbing new or changing sources without remodeling. It is an integration layer: star schemas are usually built on top of it for people to query.",
+      "points": [
+        "Hubs: business keys",
+        "Links: relationships",
+        "Satellites: descriptive attributes with history",
+        "Built for auditability, parallel loads and source change",
+        "Not for direct querying: stars on top"
+      ],
+      "why": "Why it matters: it trades query simplicity for traceability. It fits places that need an audit trail of every source change.",
+      "source": "Dan Linstedt & Michael Olschimke, Building a Scalable Data Warehouse with Data Vault 2.0 (2015)"
+    },
+    {
+      "id": "arc-13",
+      "kind": "fact",
+      "prompt": "The four master data management implementation styles, and which one leaves source systems untouched.",
+      "answer": "Registry, consolidation, coexistence, centralized (transactional). Registry leaves the sources untouched: it only keeps a cross-reference index that matches records across systems.",
+      "why": "From registry to centralized, each style takes more authority away from the source systems and costs more political capital. Start where the organization will accept it.",
+      "source": "Gartner MDM implementation styles; DAMA-DMBOK2 ch. 10"
+    },
+    {
+      "id": "arc-14",
+      "kind": "concept",
+      "prompt": "Data fabric vs data mesh: how do they differ?",
+      "answer": "A data fabric is a technology approach: an integration layer driven by metadata (catalogs, active metadata, knowledge graphs, automation) that connects distributed data without moving all of it. A data mesh is an organizational approach: business domains own their data as products, on a shared self-serve platform under federated governance. One is mainly about tooling and the other mainly about ownership, and they can coexist.",
+      "points": [
+        "Fabric: technology, metadata-driven integration",
+        "Mesh: organization, domain ownership and data products",
+        "Fabric automates; mesh decentralizes accountability",
+        "Not mutually exclusive"
+      ],
+      "why": "Why it matters: buying a fabric doesn't create ownership, and declaring a mesh doesn't create a platform.",
+      "source": "Gartner (data fabric); Dehghani, Data Mesh (2022)"
+    },
+    {
+      "id": "arc-15",
+      "kind": "judgment",
+      "prompt": "Leadership wants to 'adopt data mesh.' There's a small central data team, a handful of business units with no data engineers, and low data maturity. What do you advise?",
+      "answer": "Mesh solves a scaling problem: a central team that has become the bottleneck for many capable domains. Here the domains can't yet own data products, so decentralizing would spread scarce skills thinner and fragment definitions. Adopt the parts that fit now: name domain data owners and stewards, treat key datasets as products with documented owners and quality expectations, and build a shared platform and standards centrally. Revisit decentralization as the domains build capacity.",
+      "points": [
+        "Mesh fits large organizations with many capable domains and a central bottleneck",
+        "Prerequisites: domain engineering capacity, a self-serve platform, federated governance",
+        "At low maturity, decentralizing fragments definitions and spreads skills thin",
+        "Adopt now: domain ownership, data-as-product thinking, shared standards",
+        "Revisit as domains mature"
+      ],
+      "source": "Synthesis: Dehghani, Data Mesh (2022)"
+    },
+    {
+      "id": "arc-16",
+      "kind": "concept",
+      "prompt": "What is a data contract, and what does it change about where quality is enforced?",
+      "answer": "An explicit, versioned agreement between a data producer and its consumers covering schema, meaning, quality expectations, freshness, and how changes will be announced. It is enforced automatically in the producer's pipelines. Quality moves upstream ('shift left'): a breaking change fails at the source instead of surfacing later as a broken report.",
+      "points": [
+        "Explicit, versioned producer-consumer agreement",
+        "Covers schema, meaning, quality, freshness and the change process",
+        "Enforced automatically, ideally in the producer's deployment pipeline",
+        "Shifts quality left to the producer"
+      ],
+      "why": "Why it matters: it turns stewardship expectations into something checkable, and puts accountability with the team that can actually fix the data.",
+      "source": "Andrew Jones, Driving Data Quality with Data Contracts (2023)"
+    },
+    {
+      "id": "arc-17",
+      "kind": "concept",
+      "prompt": "What does a semantic layer do, and why does it matter for consistent numbers?",
+      "answer": "It defines business metrics, dimensions and joins once, in a governed layer between the data and the tools that use it. Dashboards, notebooks and spreadsheets all query those shared definitions instead of re-implementing them, so the same question returns the same number wherever it's asked.",
+      "points": [
+        "Metrics, dimensions and joins defined once",
+        "Sits between the data and the tools",
+        "Every tool reuses the definitions",
+        "One question, one number"
+      ],
+      "why": "Why it matters: it's where glossary definitions become executable. Without it, every report author re-derives 'active customer'.",
+      "source": "General BI practice"
+    },
+    {
+      "id": "arc-18",
+      "kind": "concept",
+      "prompt": "Event sourcing: what is it, and what do you gain and pay?",
+      "answer": "State changes are stored as an append-only log of immutable events, and current state is derived by replaying them. You gain a complete audit trail, the ability to reconstruct state at any past moment, and the freedom to build new views from history. You pay in complexity: evolving event schemas, the cost of replays, and queries that need separate read models.",
+      "points": [
+        "Append-only log of immutable events",
+        "Current state derived by replay",
+        "Gains: audit trail, point-in-time reconstruction, new views from history",
+        "Costs: event schema evolution, replay cost, separate read models"
+      ],
+      "why": "Why it matters: it makes 'what did we know, and when?' answerable, which is what auditors ask.",
+      "source": "Martin Fowler, Event Sourcing (2005); Kleppmann (2017)"
+    },
+    {
+      "id": "arc-19",
+      "kind": "concept",
+      "prompt": "Conway's law: what does it predict about data architecture?",
+      "answer": "Systems mirror the communication structure of the organizations that build them. Siloed departments produce siloed data and definitions that don't line up. Changing the architecture without changing who talks to whom, and who owns what, rarely sticks. The 'inverse Conway maneuver' shapes teams deliberately to get the architecture you want.",
+      "points": [
+        "Systems mirror organizational communication structure",
+        "Silos produce siloed data",
+        "Architecture change needs ownership and communication change",
+        "Inverse Conway: design the teams to get the architecture"
+      ],
+      "why": "Why it matters: data architecture is partly an organization-design decision, which puts it on a data leader's agenda, not only IT's.",
+      "source": "Melvin Conway, How Do Committees Invent? (1968)"
+    },
+    {
+      "id": "arc-20",
+      "kind": "judgment",
+      "prompt": "A mid-size organization with a small data team, mostly daily and monthly reporting, and some sensitive data asks what architecture to adopt. What do you recommend?",
+      "answer": "Start from the decisions and how fast they need data: most reporting is fine with daily batch, so avoid streaming until a decision really needs it. Choose a simple central platform with layered zones (raw, cleaned, curated) and ELT, and put a dimensional or semantic presentation layer on top so definitions are shared. Build access control, classification and lineage in from the first load, because the raw layer will hold sensitive data. Prefer open formats to limit lock-in, use change data capture where sources support it, and size everything to what the team can operate.",
+      "points": [
+        "Start from decisions and latency needs; batch by default",
+        "Simple central platform, layered zones, ELT",
+        "Dimensional or semantic presentation layer",
+        "Security, classification and lineage from day one",
+        "Open formats; CDC where possible",
+        "Fit what the team can operate"
+      ],
+      "source": "Synthesis"
+    },
+    {
+      "id": "arc-21",
+      "kind": "concept",
+      "prompt": "Batch or streaming: what question settles it?",
+      "answer": "Which decision changes if the data arrives in seconds instead of hours, and who will act on it that fast? If nothing changes, batch is cheaper, simpler and easier to get right. Stream where the value of data decays quickly: fraud, dispatch, alerting.",
+      "points": [
+        "Ask which decision needs the lower latency",
+        "Who acts on it that fast?",
+        "Batch: cheaper, simpler, easier to make correct",
+        "Stream where value decays fast"
+      ],
+      "why": "Why it matters: 'real-time' is often requested and rarely used. 'Right-time' is the better requirement.",
+      "source": "General"
+    }
+  ]
+}

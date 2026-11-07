@@ -66,6 +66,7 @@ The app tells you how many cards are waiting and that they wait without penalty.
 | GOV Data governance | 12 | Roles, operating models, CDEs, quality dimensions, data mesh, policy vs standard, competing definitions |
 | MET Metadata & lineage | 10 | Glossary vs catalog, static vs runtime lineage, why lineage breaks, holding tools to their claims, catalog rollout |
 | MOD Data modeling & databases | 14 | Normal forms and anomalies, keys, NULL logic, indexes, idempotent loads, grain, fact types, SCDs, conformed dimensions |
+| ARC Data architecture | 21 | Inmon vs Kimball, schema-on-read vs -write, ETL vs ELT, lakehouse and medallion layers, Lambda vs Kappa, CAP, storage-compute separation, CDC, data vault, MDM styles, fabric vs mesh, data contracts, semantic layers, event sourcing, Conway's law |
 | LNK Record linkage | 8 | Fellegi-Sunter, blocking, term frequency, thresholds, match rate vs accuracy |
 | PRV Privacy & disclosure | 7 | Re-identification, k-anonymity, suppression, differential privacy, the mosaic effect, minimization |
 | EVD Evidence & measurement | 10 | Regression to the mean, Campbell's law, small numbers, Simpson's paradox, administrative data, series breaks, proxies |

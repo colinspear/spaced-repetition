@@ -3,7 +3,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { createHash } from "node:crypto";
 
-const DECK_ORDER = ["gov", "met", "mod", "lnk", "prv", "evd", "chg", "lrn", "ldr"];
+const DECK_ORDER = ["gov", "met", "mod", "arc", "lnk", "prv", "evd", "chg", "lrn", "ldr"];
 const read = (p) => readFileSync(new URL(p, import.meta.url), "utf8");
 
 const decks = DECK_ORDER.map((d) => JSON.parse(read(`decks/${d}.json`)));

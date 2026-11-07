@@ -15,6 +15,7 @@ const DECK_META = new Map([...DECKS, INBOX].map((d) => [d.deck, d]));
 const LEARNER =
   "an experienced data leader whose work spans data governance, metadata, data modeling and databases, analytics, " +
   "change management, capability building and leadership. Economist by training. " +
+  "Thinks as a data governance leader or CDO: wants to know why an idea matters for decisions, risk and governance, more than implementation detail. " +
   "Wants terse, precise, non-sycophantic explanations; skip basics they already know.";
 const LS_KEY = "card-catalog:v1";
 const RATING = { 1: "Again", 2: "Hard", 3: "Good", 4: "Easy" };
@@ -235,7 +236,7 @@ ${calibrationContext(c.deck)}
 Write for someone who knows the field. No definitions of basics, no pep talk. Keep it general: no specific organizations, places, vendors or products unless the card is about one. If attempts have no typed text, infer the likely confusion from the card and its neighbours and say that you are inferring.
 Reply with only JSON:
 {"diagnosis":"1-2 sentences: what they get wrong and why it is tempting","explanation":"at most 120 words","hook":"one memorable handle: a sharp contrast, a concrete workplace example, or a mnemonic","contrast_card":{"prompt":"...","answer":"..."},"rewrite":null}
-Set "contrast_card" to null unless a discrimination card would help. Set "rewrite" to {"prompt","answer"} only if the card itself is ambiguous or overloaded.`;
+Set "contrast_card" to null unless a discrimination card would help. A contrast card must have one unambiguous, correct answer: check it against the reference before replying, and never let the answer contradict itself. Set "rewrite" to {"prompt","answer"} only if the card itself is ambiguous or overloaded.`;
 }
 function patternsPrompt(missed) {
   const body = missed.map(({ c, m, tries }) =>
@@ -376,6 +377,7 @@ ${cardBlock(c)}
 ${calibrationContext(c.deck)}
 Write ONE replacement card on the same topic that ${aim}
 Rules: one idea; a precise prompt with one consistent answer; general, with no real organizations, places, vendors or products unless the card is about one; only claims you are confident are accurate; concept and judgment cards need 2-5 key points.
+Before replying, check that the answer is correct and doesn't contradict itself.
 Reply with only JSON: {"kind":"concept","prompt":"...","answer":"...","points":["..."],"why":"one sentence on what changed"}`;
 }
 function deckDraftPrompt(deck) {
@@ -387,7 +389,7 @@ ${calibrationContext(deck)}
 CARDS ALREADY IN THIS DECK (don't duplicate them):
 ${have || "- none"}
 
-Write 5 new cards that fill gaps at the level the learner wants. General principles and best practice that hold in any organization; no real organizations, places, vendors or products unless a card is about one. Each card tests one idea with a precise prompt and one consistent answer. Mix kinds: "fact", "concept" (2-5 key points), "judgment" (a realistic scenario; 3-5 key points). Only include claims you are confident are accurate, and name a source for each.
+Write 5 new cards that fill gaps at the level the learner wants. General principles and best practice that hold in any organization; no real organizations, places, vendors or products unless a card is about one. Each card tests one idea with a precise prompt and one consistent answer. Mix kinds: "fact", "concept" (2-5 key points), "judgment" (a realistic scenario; 3-5 key points). Only include claims you are confident are accurate, check each answer for correctness and internal consistency before replying, and name a source for each.
 Reply with only JSON: {"cards":[{"kind":"concept","prompt":"...","answer":"...","points":["..."],"source":"..."}]}`;
 }
 function draftPrompt(note) {
@@ -585,6 +587,25 @@ function acceptRewrite(id) {
   toast("New version added as a new card. The original won't come back.");
   render();
 }
+/** Rebuild today's queue without disturbing the card on screen. */
+function refreshQueue() {
+  const sess = S.session;
+  if (!sess) return;
+  const q = buildQueue({ cards: S.cards, mem: S.mem, now: Date.now(), config: S.config, today: todayCounts(), sched: S.sched });
+  sess.queue = q.queue.filter((id) => id !== sess.current);
+  sess.counts = q.counts;
+  if (!sess.current) advance(false);
+}
+function toggleFocus(deck) {
+  const set = new Set(S.config.focusDecks || []);
+  const on = !set.has(deck);
+  on ? set.add(deck) : set.delete(deck);
+  S.config = { ...S.config, focusDecks: [...set], updatedAt: Date.now(), history: [...(S.config.history || []).slice(-19), { at: Date.now(), by: "in-app", change: `${on ? "focus" : "unfocus"} ${deck}` }] };
+  persist("config/scheduler", S.config);
+  refreshQueue();
+  toast(on ? `New cards now come from ${DECK_META.get(deck)?.code || deck} first.` : "Back to mixing new cards across decks.");
+  render();
+}
 async function deckDraft(deck) {
   if (!claudeReady() || !DECK_META.has(deck)) return;
   const out = await ask(`deckdraft:${deck}`, deckDraftPrompt(deck), { cache: false });
@@ -611,7 +632,7 @@ function useRewrite(id) {
 function addContrast(id) {
   const x = S.expl.get(id);
   if (!x?.contrast) return;
-  addCustom({ ...x.contrast, deck: S.byId.get(id).deck }, `Contrast card for ${id}`);
+  addCustom({ ...x.contrast, deck: S.byId.get(id).deck }, `Contrast card for ${id}`, undefined, { verify: true });
   x.contrast = null;
   persist(`explanations/${id}`, x);
   toast("Contrast card added. It shows up as a new card.");
@@ -806,7 +827,9 @@ function deckLevelLine(deck) {
   for (const [id, f] of S.fb) if (f.level && S.byId.get(id)?.deck === deck) n[f.level]++;
   const parts = LEVELS.filter(([k]) => n[k]).map(([k, t]) => `${n[k]} ${t.toLowerCase()}`);
   const busy = S.busy.has(`deckdraft:${deck}`), err = S.errs.get(`deckdraft:${deck}`);
-  return `<div class="row small"><span class="muted">${parts.length ? `Your level marks here: ${parts.join(" · ")}.` : "No level marks in this deck yet. Mark cards as you review and new drafts follow them."}</span>
+  const focused = (S.config.focusDecks || []).includes(deck);
+  return `<div class="row small"><button type="button" class="btn${focused ? " primary" : ""}" data-act="focus-deck" data-deck="${deck}" aria-pressed="${focused}" title="Introduce new cards from this deck before the others">${focused ? "Focused: new cards come from here first" : "Focus new cards here"}</button></div>
+<div class="row small"><span class="muted">${parts.length ? `Your level marks here: ${parts.join(" · ")}.` : "No level marks in this deck yet. Mark cards as you review and new drafts follow them."}</span>
 ${claudeReady() ? `<button type="button" class="btn" data-act="deck-draft" data-deck="${deck}" ${busy ? "disabled" : ""}>${busy ? "Drafting…" : "Draft more cards at my level"}</button>` : ""}</div>${err ? `<p class="err">${esc(err)}</p>` : ""}`;
 }
 function explanationBlock(c, x) {
@@ -1055,7 +1078,7 @@ ${revs.map((r, i) => `<tr><td>${i + 1}</td><td class="num">${r.day}</td><td clas
 <li><b>To go</b>: cards due today that you haven't seen yet, plus today's new cards.</li>
 <li><b>Coming back</b>: cards you missed, waiting a few minutes for another try.</li>
 </ul>
-<p>Each day brings up to ${cfg.newPerDay} new cards and at most ${cfg.reviewsPerDay} reviews. After days off, overdue cards beyond that cap wait without penalty, and the ones fading fastest come first. New cards pause until the pile clears. Change these limits in Tuning.</p>
+<p>New cards rotate across decks. To learn one deck sooner, open it in the Catalog and press <b>Focus new cards here</b>. Each day brings up to ${cfg.newPerDay} new cards and at most ${cfg.reviewsPerDay} reviews. After days off, overdue cards beyond that cap wait without penalty, and the ones fading fastest come first. New cards pause until the pile clears. Change these limits in Tuning.</p>
 
 <h3>Mastery</h3>
 <p>How long you'd likely still recall a card, from its stability: <b>learning</b> (days), <b>familiar</b> (up to 3 weeks), <b>solid</b> (up to 3 months), <b>mastered</b> (longer). Correct answers raise it and misses lower it. The Catalog shows mastery by deck.</p>
@@ -1198,6 +1221,7 @@ document.addEventListener("click", async (ev) => {
     case "rewrite-accept": return acceptRewrite(id);
     case "rewrite-discard": S.rewrites.delete(id); return render();
     case "deck-draft": return deckDraft(el.dataset.deck);
+    case "focus-deck": return toggleFocus(el.dataset.deck);
     case "study-save": setStudy(id, true); saveDraft(); return render();
     case "study-open": ev.preventDefault(); S.studyOpen = id; saveDraft(); if (location.hash !== "#study") location.hash = "study"; else render(); return;
     case "study-close": S.studyOpen = null; saveDraft(); return render();

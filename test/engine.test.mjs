@@ -165,3 +165,13 @@ test("guide curve: gaps grow, recall stays near target with reviews, and fades w
   assert.ok(c.without[240] < 0.6, `without reviews: ${c.without[240]}`);
   assert.equal(c.withR.length, 241);
 });
+
+test("focus decks introduce their new cards first", () => {
+  const config = { ...cfg(), focusDecks: ["arc"] };
+  const sched = schedulerFor(config, { fuzz: false });
+  const cards = ["gov-01", "gov-02", "arc-01", "arc-02", "arc-03", "mod-01"].map((id) => ({ id, deck: id.slice(0, 3), kind: "fact" }));
+  const { queue } = buildQueue({ cards, mem: new Map(), now: T0, config: { ...config, newPerDay: 4 }, sched });
+  assert.deepEqual(queue, ["arc-01", "arc-02", "arc-03", "gov-01"]);
+  const plain = buildQueue({ cards, mem: new Map(), now: T0, config: { ...cfg(), newPerDay: 4 }, sched }).queue;
+  assert.deepEqual(plain, ["gov-01", "arc-01", "mod-01", "gov-02"]);
+});

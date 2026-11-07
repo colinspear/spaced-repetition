@@ -22,6 +22,7 @@ export const DEFAULT_CONFIG = Object.freeze({
   rolloverHour: 4,
   intervalScale: 1, // stage-1 personal calibration (see fitScale)
   deckWeights: {},
+  focusDecks: [], // new cards from these decks are introduced first
   source: "defaults",
   updatedAt: null,
   history: [],
@@ -158,7 +159,11 @@ export function buildQueue({ cards, mem, now, config, today = { reviews: 0, news
   const newAvailable = live.filter((c) => isNew(mem.get(c.id)));
   // No new cards while the backlog is over the cap: adding material while drowning is how people quit.
   const newCap = backlog > 0 ? 0 : Math.max(0, config.newPerDay - today.news);
-  const news = roundRobin(newAvailable, (c) => c.deck).slice(0, newCap);
+  const focus = new Set(config.focusDecks || []);
+  const news = [
+    ...roundRobin(newAvailable.filter((c) => focus.has(c.deck)), (c) => c.deck),
+    ...roundRobin(newAvailable.filter((c) => !focus.has(c.deck)), (c) => c.deck),
+  ].slice(0, newCap);
   const reviews = interleave(chosen, (c) => c.deck).map((c) => c.id);
   const queue = spread(reviews, news.map((c) => c.id));
   const learning = live.filter((c) => isLearning(mem.get(c.id))).length;
