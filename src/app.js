@@ -28,6 +28,7 @@ const VIEW_LABEL = { review: "Review", study: "Study", catalog: "Catalog", add: 
 const DRAFT_KEY = "card-catalog:draft";
 const LEVELS = [["basic", "Too basic"], ["right", "Just right"], ["detailed", "Too detailed"], ["irrelevant", "Not useful"]];
 const LEVEL_LABEL = Object.fromEntries(LEVELS);
+const AUDIENCES = ["a chief financial officer", "a new analyst on your team", "a skeptical department head", "a board member with no technical background", "a software engineer"];
 
 const S = {
   mode: "loading", // loading | db | local | unreachable
@@ -36,7 +37,7 @@ const S = {
   cards: [], byId: new Map(),
   mem: new Map(), logs: new Map(), expl: new Map(), custom: new Map(), flags: [], insights: null,
   deep: new Map(), streamText: new Map(), pendingQ: new Map(), study: new Map(), studyOpen: null,
-  fb: new Map(), rewrites: new Map(),
+  fb: new Map(), rewrites: new Map(), teach: new Map(), teachDraft: new Map(),
   view: "review", session: null, unsaved: false,
   cat: { deck: null, q: "", open: null, flagFor: null },
   add: { note: "", deck: "inb", drafts: [], busy: false, err: "", manual: { kind: "fact", prompt: "", answer: "", points: "" } },
@@ -110,7 +111,7 @@ function saveLocalSoon() {
   localTimer = setTimeout(() => {
     try {
       localStorage.setItem(LS_KEY, JSON.stringify({
-        mem: [...S.mem], logs: [...S.logs], expl: [...S.expl], custom: [...S.custom], flags: S.flags, config: S.config, insights: S.insights, deep: [...S.deep], study: [...S.study], fb: [...S.fb],
+        mem: [...S.mem], logs: [...S.logs], expl: [...S.expl], custom: [...S.custom], flags: S.flags, config: S.config, insights: S.insights, deep: [...S.deep], study: [...S.study], fb: [...S.fb], teach: [...S.teach],
       }));
     } catch { S.unsaved = true; renderStatus(); }
   }, 250);
@@ -125,12 +126,13 @@ function loadLocal() {
     S.deep = new Map(d.deep || []);
     S.study = new Map(d.study || []);
     S.fb = new Map(d.fb || []);
+    S.teach = new Map(d.teach || []);
   } catch { /* private window or blocked storage: start empty */ }
 }
 async function loadDb() {
   const col = async (name) => (await withTimeout(S.db.collection(name).get())).docs;
-  const [cards, reviews, expl, custom, flags, deep, study, fb, cfg, ins] = await Promise.all([
-    col("cards"), col("reviews"), col("explanations"), col("custom"), col("flags"), col("deepdives"), col("study"), col("feedback"),
+  const [cards, reviews, expl, custom, flags, deep, study, fb, teach, cfg, ins] = await Promise.all([
+    col("cards"), col("reviews"), col("explanations"), col("custom"), col("flags"), col("deepdives"), col("study"), col("feedback"), col("teachbacks"),
     withTimeout(S.db.doc("config/scheduler").get()), withTimeout(S.db.doc("insights/latest").get()),
   ]);
   S.mem = new Map(cards.map((d) => [d.id, clone(d.data())]));
@@ -141,6 +143,7 @@ async function loadDb() {
   S.deep = new Map(deep.map((d) => [d.id, clone(d.data())]));
   S.study = new Map(study.map((d) => [d.id, clone(d.data())]));
   S.fb = new Map(fb.map((d) => [d.id, clone(d.data())]));
+  S.teach = new Map(teach.map((d) => [d.id, clone(d.data())]));
   S.config = mergeConfig(cfg.exists ? clone(cfg.data()) : null);
   S.insights = ins.exists ? clone(ins.data()) : null;
 }
@@ -199,12 +202,37 @@ function cardBlock(c) {
     (c.points?.length ? `\nKEY POINTS:\n${c.points.map((p, i) => `${i + 1}. ${p}`).join("\n")}` : "") +
     (c.why ? `\nNOTE: ${c.why}` : "");
 }
-function gradePrompt(c, typed) {
+function variantPrompt(c) {
+  return `Write a fresh scenario for a spaced-repetition judgment card, so the learner practises the principle and not the wording of one card.
+Learner: ${LEARNER}
+
+${cardBlock(c)}
+
+Write ONE new scenario that a good answer would handle with the same key points. Change the surface: a different kind of organization, stakeholder, data or constraint. Keep it realistic and general, with no real organizations, places, vendors or products. Don't hint at the key points. At most 60 words, ending in a question that asks what they would do.
+Reply with only JSON: {"prompt":"..."}`;
+}
+function teachPrompt(c, audience, text) {
+  return `Assess an explanation. The learner is practising explaining a concept to a specific audience. Learner: ${LEARNER}
+
+THE CONCEPT
+${cardBlock(c)}
+
+AUDIENCE: ${audience}
+
+THEIR EXPLANATION:
+"""${text}"""
+
+Judge three things. Accurate: is it correct, with nothing important to this audience left out or wrong? Clear: could this audience follow it on one hearing, without jargon they don't know? Fit: does it connect to what this audience cares about and decides?
+Then write a stronger version: how an expert would say it to this audience, at most 90 words, in plain spoken language.
+Reply with only JSON:
+{"accurate":{"ok":true,"note":"at most 20 words"},"clear":{"ok":true,"note":"at most 20 words"},"fit":{"ok":true,"note":"at most 20 words"},"feedback":"the one change that would improve it most, at most 30 words","better":"..."}`;
+}
+function gradePrompt(c, typed, variant) {
   return `Grade one spaced-repetition answer. The learner is ${LEARNER}
 Grade substance, not wording. Be strict but fair. Partial credit is allowed.
 
 ${cardBlock(c)}
-
+${variant ? `\nThe learner was shown this fresh scenario instead of the card's own prompt. It tests the same key points. Grade the answer against the key points as they apply to this scenario:\nSCENARIO: ${variant}\n` : ""}
 LEARNER'S ANSWER:
 """${typed}"""
 
@@ -437,9 +465,29 @@ function startSession() {
 function advance(doRender = true) {
   const sess = S.session;
   const nx = nextCard({ queue: sess.queue, cards: S.cards, mem: S.mem, now: Date.now(), lastId: sess.lastId });
-  Object.assign(sess, { current: nx?.id || null, from: nx?.from, phase: "front", typed: "", grade: null, override: false, focusBox: FINE_POINTER, t0: performance.now(), waitMs: 0, hiddenMs: 0, pauseAt: null });
+  Object.assign(sess, { current: nx?.id || null, from: nx?.from, phase: "front", typed: "", grade: null, override: false, focusBox: FINE_POINTER, t0: performance.now(), waitMs: 0, hiddenMs: 0, pauseAt: null, variant: null });
+  maybeVariant();
   saveDraft();
   if (doRender) render();
+}
+/** Judgment cards seen before get a fresh scenario each review, graded on the same key points. */
+function maybeVariant() {
+  const sess = S.session, c = sess.current && S.byId.get(sess.current);
+  if (!c || c.kind !== "judgment" || isNew(S.mem.get(c.id)) || !claudeReady() || !c.points?.length) return;
+  sess.variant = { state: "loading" };
+  const id = c.id;
+  S.sample.json(variantPrompt(c), { cache: false }).then((out) => {
+    const p = str(out?.prompt, 600).trim();
+    if (S.session !== sess || sess.current !== id || sess.variant?.state !== "loading") return;
+    sess.variant = p ? { state: "ready", prompt: p } : null;
+    sess.t0 = performance.now(); sess.focusBox = FINE_POINTER;
+    saveDraft(); render();
+  }).catch((e) => {
+    sampleError(e);
+    if (S.session !== sess || sess.current !== id || sess.variant?.state !== "loading") return;
+    sess.variant = null; sess.t0 = performance.now();
+    render();
+  });
 }
 // The card in progress survives reloads (phones reload backgrounded pages; publishing an
 // update reloads open views). Per-viewer convenience, so browser storage, not the db.
@@ -448,7 +496,7 @@ function saveDraft(soon = false) {
   const write = () => {
     try {
       const s = S.session;
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ id: s?.current || null, phase: s?.phase, typed: s?.typed || "", grade: s?.grade || null, override: !!s?.override, studyOpen: S.studyOpen, day: today(), at: Date.now() }));
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ id: s?.current || null, phase: s?.phase, typed: s?.typed || "", grade: s?.grade || null, override: !!s?.override, variant: s?.variant?.state === "ready" ? s.variant.prompt : null, studyOpen: S.studyOpen, day: today(), at: Date.now() }));
     } catch { /* storage blocked: nothing to restore later */ }
   };
   clearTimeout(draftTimer);
@@ -465,7 +513,7 @@ function restoreDraft(d) {
   const c = d.id && S.byId.get(d.id);
   if (!c || S.mem.get(c.id)?.suspended) return;
   if ((S.logs.get(today()) || []).some((l) => l.c === c.id && l.t >= d.at)) return; // rated since
-  Object.assign(S.session, { current: c.id, from: "restored", phase: d.phase === "back" ? "back" : "front", typed: d.typed || "", grade: d.grade || null, override: !!d.override, focusBox: false, t0: performance.now(), waitMs: 0, hiddenMs: 0, pauseAt: null });
+  Object.assign(S.session, { current: c.id, from: "restored", phase: d.phase === "back" ? "back" : "front", typed: d.typed || "", grade: d.grade || null, override: !!d.override, variant: d.variant ? { state: "ready", prompt: d.variant } : null, focusBox: false, t0: performance.now(), waitMs: 0, hiddenMs: 0, pauseAt: null });
   saveDraft();
 }
 /** Cards, not reviews: each card today is in exactly one bucket. */
@@ -480,7 +528,7 @@ function reveal() { if (S.session.current) { S.session.phase = "back"; saveDraft
 async function grade() {
   const sess = S.session, c = S.byId.get(sess.current);
   if (!c || !sess.typed.trim() || !claudeReady() || S.busy.has(`grade:${c.id}`)) return;
-  const g = await ask(`grade:${c.id}`, gradePrompt(c, sess.typed.trim()), c.kind === "fact" ? { modelTier: "quick" } : {});
+  const g = await ask(`grade:${c.id}`, gradePrompt(c, sess.typed.trim(), sess.variant?.state === "ready" ? sess.variant.prompt : null), c.kind === "fact" ? { modelTier: "quick" } : {});
   if (S.session !== sess || sess.current !== c.id) return;
   if (g) {
     const pts = Array.isArray(g.points) ? g.points : [];
@@ -505,6 +553,7 @@ function rate(r) {
   res.log.d = Math.round(Math.min(Math.max(performance.now() - sess.t0 - sess.waitMs - sess.hiddenMs - paused, 300), 600000));
   if (sess.typed.trim()) res.log.a = sess.typed.trim().slice(0, 600);
   if (sess.grade?.rating) res.log.g = sess.grade.rating;
+  if (sess.variant?.state === "ready") { res.log.v = 1; res.log.q = sess.variant.prompt.slice(0, 400); }
   S.mem.set(c.id, res.mem);
   persist(`cards/${c.id}`, res.mem);
   const key = dayKey(now, roll());
@@ -512,7 +561,7 @@ function rate(r) {
   items.push(res.log);
   S.logs.set(key, items);
   persist(`reviews/${key}`, { day: key, items });
-  sess.undo = { id: c.id, prev: clone(prev), key, queue: sess.queue.slice(), reviewed: sess.reviewed, passed: sess.passed, typed: sess.typed, grade: sess.grade };
+  sess.undo = { id: c.id, prev: clone(prev), key, queue: sess.queue.slice(), reviewed: sess.reviewed, passed: sess.passed, typed: sess.typed, grade: sess.grade, variant: sess.variant };
   sess.queue = sess.queue.filter((id) => id !== c.id);
   sess.reviewed++;
   if (r > 1) sess.passed++;
@@ -531,7 +580,7 @@ function undoLast() {
   const items = S.logs.get(u.key) || [];
   for (let i = items.length - 1; i >= 0; i--) if (items[i].c === u.id) { items.splice(i, 1); break; }
   persist(`reviews/${u.key}`, { day: u.key, items });
-  Object.assign(sess, { queue: u.queue, reviewed: u.reviewed, passed: u.passed, undo: null, current: u.id, phase: "back", typed: u.typed, grade: u.grade, override: false, t0: performance.now(), waitMs: 0, hiddenMs: 0, pauseAt: null });
+  Object.assign(sess, { queue: u.queue, reviewed: u.reviewed, passed: u.passed, undo: null, current: u.id, phase: "back", typed: u.typed, grade: u.grade, variant: u.variant || null, override: false, t0: performance.now(), waitMs: 0, hiddenMs: 0, pauseAt: null });
   saveDraft();
   render();
 }
@@ -705,9 +754,13 @@ function viewReview() {
   if (!c) return doneScreen();
   const m = S.mem.get(c.id);
   const busyGrade = S.busy.has(`grade:${c.id}`);
+  const v = sess.variant;
+  const loadingV = v?.state === "loading" && sess.phase === "front";
+  const shown = v?.state === "ready" ? v.prompt : c.prompt;
   const front = `<article class="index-card" aria-label="Card ${esc(callNumber(c))}">${cardHead(c)}
-<div class="ruled"><p class="prompt">${fmt(c.prompt)}</p></div>
-${sess.phase === "front" ? frontControls(c, busyGrade) : backSide(c, m)}
+<div class="ruled">${loadingV ? `<p class="prompt muted">Writing a fresh scenario…</p>` : `<p class="prompt">${fmt(shown)}</p>`}</div>
+${v?.state === "ready" ? `<p class="variant-note">A fresh scenario for this card. It tests the same principle${sess.phase === "back" ? `. The card's own question: ${esc(c.prompt)}` : ""}${sess.phase === "front" ? ` · <button type="button" class="linkish" data-act="variant-off">Use the original</button>` : ""}</p>` : ""}
+${loadingV ? `<div class="answer-zone"><div class="row"><button type="button" class="btn ghost" data-act="variant-off">Use the original question</button></div></div>` : sess.phase === "front" ? frontControls(c, busyGrade) : backSide(c, m)}
 </article>`;
   const p = progress();
   return `${front}<div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="${p.total}" aria-valuenow="${p.done}"><span style="width:${p.total ? (p.done / p.total) * 100 : 0}%"></span></div>
@@ -961,11 +1014,46 @@ ${ids.length ? `<ul class="cardlist">${ids.map((id) => { const c = S.byId.get(id
 </section>
 ${missesPanels()}`;
 }
+function teachBlock(c) {
+  if (!claudeReady()) return "";
+  const id = c.id, d = S.teachDraft.get(id) || { audience: AUDIENCES[0], text: "" };
+  const busy = S.busy.has(`teach:${id}`), err = S.errs.get(`teach:${id}`);
+  const last = (S.teach.get(id)?.items || []).slice(-1)[0];
+  const line = (label, r) => `<li class="${r?.ok ? "v-hit" : "v-miss"}"><span><b>${label}:</b> ${r?.ok ? "yes" : "not yet"}${r?.note ? `. ${esc(r.note)}` : ""}</span></li>`;
+  return `<div class="teach"><span class="lbl">Explain it to someone</span>
+<p class="muted">Knowing an idea and explaining it to a particular person are different skills. Pick an audience and explain this card to them in a few sentences. This doesn't change the schedule.</p>
+<form data-form="teach" data-id="${id}" class="teach-form">
+<label class="lbl inline" for="ta-${id}">Audience</label> <select id="ta-${id}" name="audience">${AUDIENCES.map((a) => `<option ${a === d.audience ? "selected" : ""}>${esc(a)}</option>`).join("")}</select>
+<label class="sr" for="tt-${id}">Your explanation</label><textarea id="tt-${id}" name="text" rows="4" placeholder="Say it the way you would to them. Dictation works well here.">${esc(d.text)}</textarea>
+<div class="row small"><button class="btn primary" type="submit" ${busy ? "disabled" : ""}>${busy ? "Claude is listening…" : "Check my explanation"}</button></div></form>
+${err ? `<p class="err">${esc(err)}</p>` : ""}
+${last ? `<div class="teach-result"><span class="lbl">Last try · to ${esc(last.audience)} · ${esc(new Date(last.at).toLocaleDateString())}</span>
+<ul class="points plain">${line("Accurate", last.result.accurate)}${line("Clear", last.result.clear)}${line("Fits the audience", last.result.fit)}</ul>
+${last.result.feedback ? `<p>${esc(last.result.feedback)}</p>` : ""}
+${last.result.better ? `<p class="lbl">A stronger version</p><p class="hook">${fmt(last.result.better)}</p>` : ""}</div>` : ""}</div>`;
+}
+async function teachBack(id, audience, text) {
+  const c = S.byId.get(id);
+  text = (text || "").trim();
+  if (!c || !text || !claudeReady() || S.busy.has(`teach:${id}`)) return;
+  if (!AUDIENCES.includes(audience)) audience = AUDIENCES[0];
+  S.teachDraft.set(id, { audience, text });
+  const out = await ask(`teach:${id}`, teachPrompt(c, audience, text.slice(0, 3000)), { cache: false });
+  if (!out) return;
+  const part = (x) => ({ ok: !!x?.ok, note: str(x?.note, 200) });
+  const result = { accurate: part(out.accurate), clear: part(out.clear), fit: part(out.fit), feedback: str(out.feedback, 300), better: str(out.better, 900) };
+  const rec = { items: [...(S.teach.get(id)?.items || []).slice(-4), { audience, text: text.slice(0, 1500), result, at: Date.now() }] };
+  S.teach.set(id, rec);
+  persist(`teachbacks/${id}`, rec);
+  S.teachDraft.set(id, { audience, text: "" });
+  render();
+}
 function studyDetail(c) {
   const can = claudeReady(), m = S.mem.get(c.id), x = S.expl.get(c.id);
   return `<article class="study-detail">${cardHead(c)}<p class="prompt sm">${fmt(c.prompt)}</p>
 <div class="answer"><span class="lbl">Answer</span><p>${fmt(c.answer)}</p>${c.points?.length ? `<ol class="points">${c.points.map((p) => `<li><span>${fmt(p)}</span></li>`).join("")}</ol>` : ""}${c.why ? `<p class="why">${fmt(c.why)}</p>` : ""}</div>
 ${deepBlock(c)}${x ? explanationBlock(c, x) : ""}
+${teachBlock(c)}
 <p class="source">Source: ${esc(c.source || "—")}</p>
 ${levelRow(c)}
 <div class="row small">${can && !S.deep.has(c.id) && !S.busy.has("deep:" + c.id) ? `<button type="button" class="btn primary" data-act="deep" data-id="${c.id}">Go deeper</button>` : ""}
@@ -1074,6 +1162,10 @@ ${revs.map((r, i) => `<tr><td>${i + 1}</td><td class="num">${r.day}</td><td clas
 <h3>Reviewing and studying</h3>
 <p>Review is for recalling what you already understand; that's what the scheduler optimizes. When a card shows you don't really understand something, switch to studying. <b>Go deeper</b> starts an explanation aimed at your answer, and the card is saved to the <b>Study</b> tab, where you can keep asking questions for as long as you like. Nothing in Study changes the schedule. The review card waits until you press <b>Next</b>, even if you leave for Study, and the time doesn't count as review time.</p>
 <p>After studying, rate honestly. If you didn't really know it, press <b>Change rating</b> and pick <b>Partly</b> or <b>Didn't know</b>, so the card comes back soon and tests the understanding you just built.</p>
+
+<h3>Practising judgment and explanation</h3>
+<p><b>Fresh scenarios.</b> A judgment card you've seen before comes back with a new scenario each time, written by Claude to test the same principle. You're practising the principle, so you can't pass by remembering one card's wording. Claude grades against the card's key points, and the card's own question and answer appear after you answer. Press <b>Use the original</b> if a scenario misses.</p>
+<p><b>Explain it to someone.</b> In Study, any card has an exercise: pick an audience, such as a chief financial officer or a new analyst, and explain the idea to them. Claude checks whether it was accurate, clear and fitted to that audience, and shows a stronger version. It doesn't change the schedule.</p>
 
 <h3>Calibrating the cards</h3>
 <p>Under each answer, mark the card's level: <b>Too basic</b>, <b>Just right</b>, <b>Too detailed</b> or <b>Not useful</b>. It's one tap, and you can add a note. Too basic or too detailed offers a rewrite: Claude drafts a harder or more principle-focused version for you to accept or discard. An accepted rewrite starts as a new card and the original retires. Your marks also steer every card Claude writes for you: rewrites, drafts from your notes, and <b>Draft more cards at my level</b> in each Catalog deck.</p>
@@ -1216,7 +1308,7 @@ function wireCurve(host, c, W) {
   };
 }
 
-const SESSION_PROMPT = `Review my learning in the Card Catalog artifact. Read its db (reviews, cards, flags, feedback, explanations, deepdives, study, custom, config/scheduler) with ArtifactData. Fix or retire flagged deck cards in decks/ and resolve the flags. Use the level feedback to rewrite, retire or add deck cards at the level I marked "just right". If there are enough reviews, run tools/optimize.py and write the fitted parameters and per-kind retention to config/scheduler. Write what you found to insights/latest. Rebuild, run the tests, republish, and tell me what changed and why.`;
+const SESSION_PROMPT = `Review my learning in the Card Catalog artifact. Read its db (reviews, cards, flags, feedback, explanations, deepdives, teachbacks, study, custom, config/scheduler) with ArtifactData. Fix or retire flagged deck cards in decks/ and resolve the flags. Use the level feedback to rewrite, retire or add deck cards at the level I marked "just right". If there are enough reviews, run tools/optimize.py and write the fitted parameters and per-kind retention to config/scheduler. Write what you found to insights/latest. Rebuild, run the tests, republish, and tell me what changed and why.`;
 
 // ---------- events ----------
 function route() {
@@ -1239,6 +1331,7 @@ document.addEventListener("click", async (ev) => {
     case "rewrite-discard": S.rewrites.delete(id); return render();
     case "deck-draft": return deckDraft(el.dataset.deck);
     case "focus-deck": return toggleFocus(el.dataset.deck);
+    case "variant-off": S.session.variant = null; S.session.t0 = performance.now(); S.session.focusBox = FINE_POINTER; saveDraft(); return render();
     case "study-save": setStudy(id, true); saveDraft(); return render();
     case "study-open": ev.preventDefault(); S.studyOpen = id; saveDraft(); if (location.hash !== "#study") location.hash = "study"; else render(); return;
     case "study-close": S.studyOpen = null; saveDraft(); return render();
@@ -1300,10 +1393,12 @@ document.addEventListener("input", (ev) => {
     const b = document.querySelector('[data-act="grade"]');
     if (b && !S.busy.has(`grade:${S.session.current}`)) b.disabled = !t.value.trim();
   }
+  else if (t.id?.startsWith("tt-")) { const id = t.id.slice(3); S.teachDraft.set(id, { audience: document.getElementById(`ta-${id}`)?.value || AUDIENCES[0], text: t.value }); }
   else if (t.id === "add-note") { S.add.note = t.value; const b = document.querySelector('[data-act="draft"]'); if (b && !S.busy.has("draft")) b.disabled = !t.value.trim(); }
   else if (t.id === "cat-q") { S.cat.q = t.value; const pos = t.selectionStart; render(); const n = document.getElementById("cat-q"); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }
 });
 document.addEventListener("change", (ev) => {
+  if (ev.target.id?.startsWith("ta-")) { const id = ev.target.id.slice(3); S.teachDraft.set(id, { audience: ev.target.value, text: document.getElementById(`tt-${id}`)?.value || "" }); return; }
   if (ev.target.id !== "add-deck") return;
   S.add.deck = ev.target.value;
   const code = DECK_META.get(S.add.deck)?.code || "INB";
@@ -1314,6 +1409,10 @@ document.addEventListener("submit", (ev) => {
   if (!form) return;
   ev.preventDefault();
   const fd = new FormData(form);
+  if (form.dataset.form === "teach") {
+    teachBack(form.dataset.id, String(fd.get("audience") || ""), String(fd.get("text") || ""));
+    return;
+  }
   if (form.dataset.form === "level-note") {
     saveLevelNote(form.dataset.id, String(fd.get("note") || ""));
     return;
@@ -1373,7 +1472,7 @@ async function exportData() {
     cards: S.cards.map(({ id, deck, kind, prompt, answer, points, source, custom, edited, retired }) => ({ id, deck, kind, prompt, answer, points, source, custom: !!custom, edited: !!edited, retired: !!retired })),
     memory: Object.fromEntries(S.mem),
     reviews: [...S.logs.entries()].flatMap(([day, items]) => items.map((x) => ({ day, ...x }))),
-    explanations: Object.fromEntries(S.expl), deepdives: Object.fromEntries(S.deep), feedback: Object.fromEntries(S.fb), flags: S.flags, insights: S.insights,
+    explanations: Object.fromEntries(S.expl), deepdives: Object.fromEntries(S.deep), feedback: Object.fromEntries(S.fb), teachbacks: Object.fromEntries(S.teach), flags: S.flags, insights: S.insights,
   };
   const json = JSON.stringify(data, null, 1);
   if (S.downloads) {

@@ -315,3 +315,13 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var
 .level-note input { flex: 1 1 auto; min-width: 0; padding: 6px 8px; }
 .rewrite { background: var(--stock); border-radius: 3px; padding: 12px 14px; box-shadow: inset 0 0 0 1px var(--accent); display: grid; gap: 8px; }
 .draft input[type="text"] { width: 100%; box-sizing: border-box; }
+
+/* scenario variants and teach-back */
+.variant-note { font-size: 12.5px; color: var(--ink-3); padding: 0 18px 8px; max-width: 65ch; }
+.linkish { font: inherit; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
+.prompt.muted { color: var(--ink-3); }
+.teach { background: var(--stock); border-radius: 3px; padding: 12px 14px; box-shadow: inset 0 0 0 1px var(--line); display: grid; gap: 10px; }
+.teach-form { display: grid; gap: 8px; }
+.teach-form select { max-width: 100%; }
+.teach-result { display: grid; gap: 8px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.points.plain { list-style: none; padding-left: 0; margin: 0; }

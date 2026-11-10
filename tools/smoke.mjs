@@ -33,8 +33,11 @@ function installMock() {
   };
   sample.json = async (prompt, opts = {}) => {
     replies.push(prompt.slice(0, 60) + (opts.modelTier ? ` [${opts.modelTier}]` : ""));
+    if (prompt.startsWith("Grade one")) window.__mock.lastGrade = prompt;
     if (prompt.startsWith("Grade one") && prompt.includes("CARD (fact")) return { points: [{ i: 1, verdict: "hit", note: "" }], wrong: "", feedback: "Right.", rating: 3 };
     if (prompt.startsWith("Grade one")) return { points: [{ i: 1, verdict: "hit", note: "named accountability" }, { i: 2, verdict: "miss", note: "steward role missing" }], wrong: "", feedback: "You defined the owner but not the steward.", rating: 2 };
+    if (prompt.startsWith("Write a fresh scenario")) return { prompt: "A hospital's lab team says naming a steward is extra work. What do you propose?" };
+    if (prompt.startsWith("Assess an explanation")) return { accurate: { ok: true, note: "Correct." }, clear: { ok: false, note: "Uses 'steward' without defining it." }, fit: { ok: true, note: "Tied to cost." }, feedback: "Define steward in one phrase.", better: "Someone already answers questions about this data. We name them." };
     if (prompt.startsWith("Rewrite this spaced-repetition card")) { window.__mock.lastRewrite = prompt; return { kind: "judgment", prompt: "A team keeps two definitions of one metric. What do you do?", answer: "Name them distinctly and pick one for shared reporting.", points: ["distinct names", "one authoritative"], why: "Asks for application instead of recall." }; }
     if (prompt.startsWith("Draft new spaced-repetition cards")) { window.__mock.lastDeckDraft = prompt; return { cards: [{ kind: "concept", prompt: "Why separate policy from standard?", answer: "So details can change without re-approval.", points: ["stable policy", "changeable standard"], source: "Governance practice" }, { kind: "fact", prompt: "What does RACI's A require?", answer: "Exactly one accountable person." }] }; }
     if (prompt.startsWith("Turn this note")) return { cards: [{ kind: "fact", prompt: "Which tenant setting exposes DAX in scans?", answer: "Enhance admin API responses with DAX and mashup expressions." }, { kind: "concept", prompt: "Why stitch lineage by server identity?", answer: "Connectors name servers differently.", points: ["alias vs FQDN", "match identities"] }] };
@@ -259,6 +262,32 @@ await capPage.click(".rate-btn.r2");
 assert.match(await capPage.textContent("#toast"), /enough of this card for today/);
 assert.equal(await capPage.evaluate(() => window.__mock.docs.get("cards/gov-01").state), 2);
 assert.match(await capPage.textContent(".status"), /1 done/);
+
+// Fresh scenario on a judgment card seen before, graded against the same key points; then teach-back in Study
+const vp = await newPage({ viewport: { width: 800, height: 900 } }, true, () => {
+  const now = Date.now();
+  window.__mock.docs.set("cards/gov-08", { state: 2, step: null, stability: 3, difficulty: 6, due: now - 86400000, lastReview: now - 4 * 86400000, reps: 2, lapses: 0, agains: 0, suspended: false });
+});
+await vp.waitForSelector(".variant-note");
+assert.match(await vp.textContent(".prompt"), /hospital's lab team/);
+await vp.fill("#answer-box", "Name the person who already answers questions and shrink the ask.");
+await vp.click('[data-act="grade"]');
+await vp.waitForSelector(".grade");
+assert.match(await vp.evaluate(() => window.__mock.lastGrade), /SCENARIO: A hospital's lab team[\s\S]*Name the person who already answers/);
+assert.match(await vp.textContent(".variant-note"), /The card's own question: A department head says/);
+await vp.click('[data-act="study-save"]');
+await vp.click('[data-act="override"]');
+await vp.click(".rate-btn.r3");
+const vday = await vp.evaluate(() => [...window.__mock.docs.keys()].find((k) => k.startsWith("reviews/")));
+assert.equal(await vp.evaluate((k) => window.__mock.docs.get(k).items[0].v, vday), 1);
+await vp.evaluate(() => (location.hash = "study"));
+await vp.click('.cardlist [data-act="study-open"][data-id="gov-08"]');
+await vp.selectOption("#ta-gov-08", "a new analyst on your team");
+await vp.fill("#tt-gov-08", "Someone already answers questions about this data, so we name them steward.");
+await vp.click('form[data-form="teach"] button[type="submit"]');
+await vp.waitForSelector(".teach-result");
+assert.match(await vp.textContent(".teach-result"), /to a new analyst on your team[\s\S]*Clear: not yet[\s\S]*A stronger version/);
+assert.equal(await vp.evaluate(() => window.__mock.docs.get("teachbacks/gov-08").items.length), 1);
 
 // 3. Explain flow for a missed card (seeded memory with misses).
 const ex = await newPage({ viewport: { width: 800, height: 900 } }, true, () => {

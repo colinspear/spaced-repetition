@@ -1,0 +1,135 @@
+{
+  "deck": "aig",
+  "code": "AIG",
+  "title": "AI & model governance",
+  "blurb": "What a data leader needs to govern models and generative AI: risk frameworks, documentation, drift, fairness and the limits of oversight.",
+  "cards": [
+    {
+      "id": "aig-01",
+      "kind": "fact",
+      "prompt": "The four functions of the NIST AI Risk Management Framework.",
+      "answer": "Govern, Map, Measure, Manage.",
+      "why": "Govern sets the culture, roles and policies and runs through the other three. Map establishes the context and identifies the risks of a system. Measure assesses and tracks them. Manage prioritizes and acts on them.",
+      "source": "NIST, AI Risk Management Framework 1.0 (2023)"
+    },
+    {
+      "id": "aig-02",
+      "kind": "fact",
+      "prompt": "The EU AI Act sorts AI systems into four risk tiers. Name them and what each means.",
+      "answer": "Unacceptable risk: prohibited. High risk: allowed with strict obligations such as risk management, documentation and human oversight. Limited risk: transparency duties, such as telling people they're dealing with AI. Minimal risk: no new obligations.",
+      "why": "Why it matters even outside the EU: the risk-tier idea is the common pattern for AI policy. Classify the use, then scale the controls to the risk.",
+      "source": "Regulation (EU) 2024/1689 (the AI Act)"
+    },
+    {
+      "id": "aig-03",
+      "kind": "concept",
+      "prompt": "What are model cards and datasheets for datasets, and what problem do they solve?",
+      "answer": "A model card is a short standard document that travels with a model: what it's for, what it isn't for, the data it was trained and evaluated on, and how well it performs, including across different groups. A datasheet does the same for a dataset: why and how it was collected, what's in it, and its known gaps and recommended uses. Both make the limits visible to the people who reuse the model or data, who usually weren't there when it was built.",
+      "points": [
+        "Model card: intended use, out-of-scope use, training and evaluation data, performance",
+        "Performance reported across groups, not only overall",
+        "Datasheet: why and how the data was collected, composition, gaps, recommended uses",
+        "Purpose: limits stay visible to people who reuse it later"
+      ],
+      "source": "Mitchell et al., Model Cards for Model Reporting (2019); Gebru et al., Datasheets for Datasets (2021)"
+    },
+    {
+      "id": "aig-04",
+      "kind": "concept",
+      "prompt": "Why does a model that tested well get worse after deployment? Distinguish data drift from concept drift.",
+      "answer": "A model learns from a snapshot of the world, and the world moves. Data drift: the inputs change, for example a new customer mix or a changed form, so the model sees cases unlike its training data. Concept drift: the relationship between inputs and the outcome changes, so the same inputs now mean something different. Both call for monitoring inputs and outcomes after launch, with a plan for retraining or retiring the model.",
+      "points": [
+        "Models are trained on a snapshot; the world changes",
+        "Data drift: the distribution of inputs shifts",
+        "Concept drift: the input-outcome relationship shifts",
+        "Monitor inputs and outcomes after launch",
+        "Have a retraining or retirement plan"
+      ],
+      "source": "Gama et al., A Survey on Concept Drift Adaptation (2014)"
+    },
+    {
+      "id": "aig-05",
+      "kind": "concept",
+      "prompt": "The fairness 'impossibility' result: what can't a risk-scoring model achieve at once, and what follows?",
+      "answer": "When two groups have different underlying rates of the outcome, a score can't be both equally well calibrated for each group and have equal false positive and false negative rates across them, except in trivial cases. So 'is the model fair?' has no single technical answer. Someone has to choose which fairness definition matters for this use, and that is a policy decision to make openly and document.",
+      "points": [
+        "Applies when base rates differ between groups",
+        "Calibration and equal error rates can't all hold together",
+        "No single technical definition of 'fair'",
+        "Choosing the definition is a policy decision, made openly and documented"
+      ],
+      "source": "Kleinberg, Mullainathan & Raghavan (2016); Chouldechova (2017)"
+    },
+    {
+      "id": "aig-06",
+      "kind": "concept",
+      "prompt": "What is a 'hallucination' in a large language model, and what reduces the risk?",
+      "answer": "A language model generates fluent, plausible text, and some of it is false or unsupported: invented facts, citations or figures, stated with the same confidence as true ones. The model predicts likely text; it doesn't look facts up unless it's given a way to. The risk is reduced by grounding answers in supplied source documents, requiring citations that can be checked, testing on realistic questions before launch, and keeping a person responsible for consequential outputs.",
+      "points": [
+        "Fluent, confident output that is false or unsupported",
+        "The model predicts plausible text rather than retrieving facts",
+        "Ground answers in supplied sources",
+        "Require checkable citations",
+        "Evaluate before launch; keep a person accountable for consequential outputs"
+      ],
+      "source": "General; see NIST AI 600-1, Generative AI Profile (2024), on confabulation"
+    },
+    {
+      "id": "aig-07",
+      "kind": "concept",
+      "prompt": "What is retrieval-augmented generation, and why does it turn data governance into an AI issue?",
+      "answer": "Retrieval-augmented generation (RAG) first searches a collection of documents or data for material relevant to a question, then gives that material to a language model to write the answer from. The answer can only be as good as what's retrieved. Outdated, duplicated or wrong documents produce confident wrong answers, and if retrieval ignores access permissions, the assistant can reveal content the person asking shouldn't see.",
+      "points": [
+        "Retrieve relevant material first, then generate the answer from it",
+        "Answer quality is bounded by the quality of the content retrieved",
+        "Stale, duplicate or wrong content yields confident wrong answers",
+        "Retrieval must respect access permissions",
+        "So content quality, ownership and access control become AI prerequisites"
+      ],
+      "source": "Lewis et al., Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks (2020)"
+    },
+    {
+      "id": "aig-08",
+      "kind": "concept",
+      "prompt": "Why is 'a human reviews every decision' a weaker safeguard than it sounds?",
+      "answer": "Automation bias: people tend to accept an automated recommendation, especially under time pressure or when the system is usually right, so review becomes a rubber stamp. Oversight works only when the reviewer has the time, information, skill and authority to disagree, and when overrides are tracked. Otherwise the person takes the accountability without having real control.",
+      "points": [
+        "Automation bias: people defer to automated recommendations",
+        "Worse under time pressure and when the system is usually right",
+        "Real oversight needs time, information, skill and authority to disagree",
+        "Track override rates",
+        "Otherwise accountability without control"
+      ],
+      "source": "Parasuraman & Manzey, Complacency and Bias in Human Use of Automation (2010)"
+    },
+    {
+      "id": "aig-09",
+      "kind": "concept",
+      "prompt": "Model risk management, as set out in the US banking guidance SR 11-7: what is model risk, and what are the three pillars of managing it?",
+      "answer": "Model risk is the potential for harm from decisions based on models that are wrong or misused. The guidance rests on three pillars. Sound development, implementation and use: a clear purpose, tested, used only as intended. Independent validation: people who didn't build the model test it and have the standing to challenge it. Governance: policies, defined roles and an inventory of every model in use.",
+      "points": [
+        "Model risk: harm from wrong or misused models",
+        "Sound development, implementation and use",
+        "Independent validation with effective challenge",
+        "Governance: policies, roles and a model inventory"
+      ],
+      "why": "It was written for banks, but it has become the reference pattern for model governance in other sectors.",
+      "source": "Federal Reserve & OCC, SR 11-7: Supervisory Guidance on Model Risk Management (2011)"
+    },
+    {
+      "id": "aig-10",
+      "kind": "judgment",
+      "prompt": "A department wants to launch a generative AI assistant that answers staff questions from internal documents. What do you require before it goes live?",
+      "answer": "A named owner and a stated purpose, including what it must not be used for. A check of the document collection: current, de-duplicated, and with access permissions the assistant respects. An evaluation on realistic questions with known answers, including ones it should decline. Answers that cite their sources so staff can verify them. Clear guidance on what staff remain responsible for. And monitoring after launch: a way to report bad answers, usage review, and a plan to fix or withdraw it.",
+      "points": [
+        "Named owner, stated purpose and out-of-scope uses",
+        "Source content is current, de-duplicated and permission-aware",
+        "Evaluated on realistic questions with known answers before launch",
+        "Answers cite sources",
+        "Staff know what they remain responsible for",
+        "Monitoring, feedback channel and a withdrawal plan"
+      ],
+      "source": "Synthesis: NIST AI RMF (2023); NIST AI 600-1 (2024)"
+    }
+  ]
+}

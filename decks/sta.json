@@ -1,0 +1,153 @@
+{
+  "deck": "sta",
+  "code": "STA",
+  "title": "Statistics & ML for leaders",
+  "blurb": "The ideas you need to question an analysis or a model claim: overfitting, error types, base rates, significance and causation.",
+  "cards": [
+    {
+      "id": "sta-01",
+      "kind": "concept",
+      "prompt": "What is overfitting, and how do you detect it?",
+      "answer": "A model overfits when it learns the quirks and noise of its training data instead of the underlying pattern. It then looks excellent on the data it was built from and does worse on new data. You detect it by testing on data the model has never seen: a large gap between training performance and held-out performance is the sign.",
+      "points": [
+        "Learns noise and quirks of the training data, not the general pattern",
+        "Excellent on training data, worse on new data",
+        "Detect with held-out data the model never saw",
+        "A large train-test gap is the sign"
+      ],
+      "source": "Hastie, Tibshirani & Friedman, The Elements of Statistical Learning (2009)"
+    },
+    {
+      "id": "sta-02",
+      "kind": "concept",
+      "prompt": "What is data leakage in machine learning, and why does it produce models that look better than they are?",
+      "answer": "Leakage is when information that wouldn't be available at prediction time gets into the training data: a field recorded after the outcome, or the same person appearing in both the training and test sets. The model learns to exploit it, scores unrealistically well in testing, and fails in real use. A result that looks too good is the usual warning sign.",
+      "points": [
+        "Training uses information unavailable at prediction time",
+        "Examples: fields recorded after the outcome; the same entity in train and test",
+        "Test scores are inflated; real-world performance collapses",
+        "Suspiciously good results are the warning sign"
+      ],
+      "source": "Kaufman et al., Leakage in Data Mining (2012)"
+    },
+    {
+      "id": "sta-03",
+      "kind": "concept",
+      "prompt": "Precision vs recall: what does each measure, and why is 'accuracy' misleading for rare events?",
+      "answer": "Precision: of the cases the model flagged, the share that were truly positive. Recall: of the truly positive cases, the share the model caught. Accuracy misleads when the event is rare: if 1% of cases are fraud, a model that never flags anything is 99% accurate and useless. Raising one of precision and recall usually lowers the other, so the right balance depends on what each kind of error costs.",
+      "points": [
+        "Precision: of those flagged, the share truly positive",
+        "Recall: of true positives, the share caught",
+        "With rare events, 'always say no' scores high accuracy",
+        "There is a trade-off between the two",
+        "The balance depends on the cost of each error"
+      ],
+      "source": "Standard; any machine-learning text"
+    },
+    {
+      "id": "sta-04",
+      "kind": "concept",
+      "prompt": "A test is 95% accurate and the condition affects 1 in 100 people. Someone tests positive. Roughly how likely are they to have it, and what is the lesson?",
+      "answer": "About 1 in 6. In 10,000 people, 100 have the condition and about 95 test positive. Of the 9,900 who don't, 5% test positive anyway: about 495. So only 95 of roughly 590 positives are real, around 16%. The lesson is the base rate: when a condition is rare, most positives are false, even from a good test.",
+      "points": [
+        "About 16%, or 1 in 6",
+        "True positives: about 95 of 100",
+        "False positives: about 495 of 9,900",
+        "When the base rate is low, most positives are false"
+      ],
+      "why": "This assumes '95% accurate' means it catches 95% of real cases and wrongly flags 5% of the rest. The same arithmetic applies to any screening model for a rare outcome.",
+      "source": "Standard (Bayes' rule); see Gigerenzer, Calculated Risks (2002)"
+    },
+    {
+      "id": "sta-05",
+      "kind": "concept",
+      "prompt": "What does a p-value of 0.03 mean, and what doesn't it mean?",
+      "answer": "It means that if there were truly no effect, and the model's assumptions held, a result at least this extreme would occur about 3% of the time. It doesn't mean there is a 3% chance the finding is false or a 97% chance it's true, and it says nothing about how large or important the effect is.",
+      "points": [
+        "The probability of data this extreme, assuming no real effect",
+        "Not the probability that the hypothesis is true or false",
+        "Says nothing about the size or importance of the effect",
+        "Depends on the assumptions of the analysis"
+      ],
+      "source": "Wasserstein & Lazar, The ASA Statement on p-Values (2016)"
+    },
+    {
+      "id": "sta-06",
+      "kind": "concept",
+      "prompt": "Statistical significance vs practical significance: why isn't a 'significant' result necessarily worth acting on?",
+      "answer": "Statistical significance says an effect is unlikely to be pure chance. It doesn't say the effect is big enough to matter. With a large enough sample, a trivially small difference becomes significant. So look at the effect size and its confidence interval, and compare them with the smallest change that would justify the cost of acting.",
+      "points": [
+        "Significance: unlikely to be chance alone",
+        "It says nothing about whether the effect is big enough to matter",
+        "Large samples make tiny effects significant",
+        "Look at effect size and confidence interval",
+        "Compare with the smallest change worth acting on"
+      ],
+      "source": "Wasserstein & Lazar (2016); standard"
+    },
+    {
+      "id": "sta-07",
+      "kind": "concept",
+      "prompt": "Why can't you read causation from a correlation, and why does random assignment fix it?",
+      "answer": "Two things can move together because one causes the other, because the causation runs the other way, or because a third factor, a confounder, drives both. People who choose a program differ from those who don't in ways that also affect the outcome. Random assignment makes the groups alike, on average, in everything except the treatment, known and unknown, so a difference in outcomes can be attributed to it.",
+      "points": [
+        "Correlation can come from reverse causation",
+        "Or from a confounder driving both",
+        "Self-selected groups differ in ways that affect the outcome",
+        "Randomization balances known and unknown factors on average",
+        "So the outcome difference can be attributed to the treatment"
+      ],
+      "source": "Standard; Angrist & Pischke, Mostly Harmless Econometrics (2009)"
+    },
+    {
+      "id": "sta-08",
+      "kind": "concept",
+      "prompt": "An analyst tests 20 different breakdowns and reports the one significant result. What's the problem?",
+      "answer": "Multiple comparisons. At the usual 5% threshold, about one in twenty tests comes out significant by chance when nothing is going on, so testing 20 breakdowns and reporting the winner is close to guaranteed to find something. The fixes are to decide the comparisons before looking, report all the tests that were run, adjust the threshold for the number of tests, and confirm the finding on fresh data.",
+      "points": [
+        "At a 5% threshold, about 1 in 20 tests is significant by chance",
+        "Reporting only the winner hides the search",
+        "Decide comparisons in advance",
+        "Report every test run; adjust for the number of tests",
+        "Confirm on fresh data"
+      ],
+      "source": "Gelman & Loken, The Garden of Forking Paths (2013)"
+    },
+    {
+      "id": "sta-09",
+      "kind": "concept",
+      "prompt": "What is survivorship bias? Give the classic example.",
+      "answer": "Drawing conclusions from the cases that made it through some selection, while the ones that didn't are missing from the data. The classic example is wartime bomber armor: returning aircraft had bullet holes in the wings and fuselage, and the statistician Abraham Wald pointed out that the armor belonged where the returning planes had no holes, because planes hit there hadn't come back.",
+      "points": [
+        "Only the cases that passed a filter are observed",
+        "The missing cases would change the conclusion",
+        "Wald: armor where returning planes had no holes",
+        "Ask what is missing from the data, and why"
+      ],
+      "source": "Wald's wartime work for the Statistical Research Group; Mangel & Samaniego (1984)"
+    },
+    {
+      "id": "sta-10",
+      "kind": "fact",
+      "prompt": "What four things determine the sample size an experiment needs?",
+      "answer": "The smallest effect you want to be able to detect, how variable the outcome is, the significance level, and the statistical power you want (the chance of detecting a real effect of that size).",
+      "why": "The smaller the effect, the bigger the sample: halving the detectable effect needs about four times as many observations. An underpowered test that finds nothing has shown little.",
+      "source": "Standard; Cohen, Statistical Power Analysis for the Behavioral Sciences (1988)"
+    },
+    {
+      "id": "sta-11",
+      "kind": "judgment",
+      "prompt": "A vendor says their model predicts an outcome you care about 'with 95% accuracy.' What do you ask before you believe it?",
+      "answer": "How common is the outcome? If it's rare, 95% may be no better than always saying no, so ask for precision and recall. What data was it tested on: data it never saw, from a population and time period like yours? Could any input contain information that wouldn't be available when the prediction is made? How does performance vary across groups? And how will it be monitored once conditions change?",
+      "points": [
+        "Ask for the base rate; accuracy can be empty for rare outcomes",
+        "Ask for precision and recall",
+        "Tested on unseen data like yours, in population and time",
+        "Check for leakage in the inputs",
+        "Performance across groups",
+        "Monitoring for drift after deployment"
+      ],
+      "source": "Synthesis"
+    }
+  ]
+}

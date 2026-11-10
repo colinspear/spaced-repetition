@@ -31,6 +31,9 @@ It is built on Patrick Collison's [suggestion](https://x.com/patrickc/status/211
 
 7. **Level** (Too basic, Just right, Too detailed, Not useful) calibrates the content, not the schedule. Too basic or too detailed offers a Claude rewrite to accept or discard; an accepted rewrite becomes a new card and the original retires. The marks go into every prompt where Claude writes cards, as worked examples, and each Catalog deck has **Draft more cards at my level**. There's deliberately no "too hard": difficulty is the scheduler's job.
 
+8. **Fresh scenarios.** A judgment card seen before comes back with a new scenario each review, written by Claude to test the same key points, so the principle is practised rather than one card's wording. The log marks these reviews with `v: 1`.
+9. **Explain it to someone** (Study tab): explain a card to a chosen audience; Claude checks accuracy, clarity and fit, and shows a stronger version. Saved to `teachbacks/{id}`; it doesn't affect the schedule.
+
 The count is in cards, not reviews: each card today is either done, to go, or coming back.
 
 You can skip typing with **Skip to the answer** and rate yourself, for low-energy days.
@@ -71,6 +74,8 @@ The app tells you how many cards are waiting and that they wait without penalty.
 | LNK Record linkage | 8 | Fellegi-Sunter, blocking, term frequency, thresholds, match rate vs accuracy |
 | PRV Privacy & disclosure | 7 | Re-identification, k-anonymity, suppression, differential privacy, the mosaic effect, minimization |
 | EVD Evidence & measurement | 10 | Regression to the mean, Campbell's law, small numbers, Simpson's paradox, administrative data, series breaks, proxies |
+| STA Statistics & ML for leaders | 11 | Overfitting, leakage, precision and recall, base rates, p-values, practical significance, causation, multiple comparisons, survivorship bias, sample size |
+| AIG AI & model governance | 10 | NIST AI RMF, EU AI Act tiers, model cards, drift, fairness trade-offs, hallucination, retrieval-augmented generation, automation bias, model risk management |
 | CHG Change management | 9 | Lewin, Bridges, Kotter, ADKAR, Rogers, Switch, defaults, resistance |
 | LRN Learning & capability building | 8 | Kirkpatrick, desirable difficulties, Dreyfus, worked examples, curse of knowledge, communities of practice |
 | LDR Leadership | 10 | Psychological safety, adaptive challenges, influence without authority, feedback, decision rights, teams |
