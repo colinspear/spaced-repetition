@@ -108,14 +108,14 @@
     {
       "id": "evd-10",
       "kind": "concept",
-      "prompt": "A field classifies records for one administrative purpose, such as a land-use code for tax assessment. Why is it risky to use it to count a real-world state, like vacant buildings?",
-      "answer": "The code answers the question its process asks, not yours. An abandoned house usually keeps its residential code, and codes lag reality. Treat it as a proxy, look for direct signals of the state you care about, validate the proxy against ground truth, and define the target state explicitly.",
+      "prompt": "A field is recorded for one administrative purpose, such as diagnosis codes entered for billing. Why is it risky to use it to measure something else, such as how common a disease is?",
+      "answer": "The field answers the question its own process asks, not yours. Billing codes reflect what gets paid for and how staff are trained to code, so they over-count some conditions and miss others, and they shift when the rules change. Treat such a field as a proxy: look for direct measures, validate the proxy against a trusted sample, and define precisely what you are trying to count.",
       "points": [
-        "Codes answer their own process's question",
-        "Classification lags and diverges from reality",
-        "Seek direct signals; triangulate sources",
-        "Validate the proxy against ground truth",
-        "Define the target state explicitly"
+        "The field serves its own process, not your question",
+        "Recording incentives and rules distort it",
+        "It shifts when the rules change",
+        "Treat it as a proxy and validate against a trusted sample",
+        "Define the target precisely"
       ],
       "source": "Standard measurement practice"
     }

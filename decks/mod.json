@@ -123,14 +123,23 @@
       "prompt": "An order moves through placed, paid, shipped and delivered, with one row per order whose milestone dates fill in over time. Which fact-table type?",
       "answer": "Accumulating snapshot.",
       "why": "Transaction: one row per event. Periodic snapshot: one row per period (inventory at month end). Accumulating snapshot: one row per process instance, updated as milestones occur. It's the natural home for durations between steps.",
-      "source": "Kimball & Ross"
+      "source": "Kimball & Ross",
+      "retired": true,
+      "retiredWhy": "Level audit: modeling terminology below the level marked just right."
     },
     {
       "id": "mod-11",
-      "kind": "fact",
-      "prompt": "Slowly changing dimension Types 1, 2 and 3, one line each.",
-      "answer": "Type 1: overwrite (no history). Type 2: add a new row with effective dates and a current flag (full history). Type 3: add a previous-value column (one step of history).",
-      "source": "Kimball & Ross"
+      "kind": "concept",
+      "prompt": "A customer moves to a new region. What are the options for handling that change in an analytical model, and who should choose?",
+      "answer": "Overwrite the old value, so all history is reported under the new region. Or keep history, by adding a new version of the customer with effective dates, so past activity stays under the region it happened in. Or keep just the previous value alongside the current one. Modelers call these slowly changing dimension Types 1, 2 and 3. The choice changes what past reports say, so it belongs to the business, attribute by attribute.",
+      "source": "Kimball & Ross, The Data Warehouse Toolkit",
+      "points": [
+        "Overwrite: no history; the past is restated (Type 1)",
+        "New version with effective dates: full history (Type 2)",
+        "Previous-value column: one step of history (Type 3)",
+        "The choice changes what historical reports show",
+        "So the business decides, attribute by attribute"
+      ]
     },
     {
       "id": "mod-12",
@@ -155,7 +164,9 @@
         "Flat tables: repetition, grain errors, inconsistent measures",
         "Snowflakes: extra hops and author confusion"
       ],
-      "source": "Kimball & Ross; BI vendor modeling guidance"
+      "source": "Kimball & Ross; BI vendor modeling guidance",
+      "retired": true,
+      "retiredWhy": "Level audit: engine detail; the principle is covered by mod-03 and arc-10."
     },
     {
       "id": "mod-14",

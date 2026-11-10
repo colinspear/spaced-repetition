@@ -82,7 +82,9 @@
         "Debugging a single wrong metric",
         "Table-level shows existence; column-level shows which fields and how"
       ],
-      "source": "General"
+      "source": "General",
+      "retired": true,
+      "retiredWhy": "Level audit: lineage tooling detail rather than a foundational principle."
     },
     {
       "id": "met-08",

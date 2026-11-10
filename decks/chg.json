@@ -58,9 +58,9 @@
     {
       "id": "chg-06",
       "kind": "fact",
-      "prompt": "Rogers' adopter categories, with their shares.",
-      "answer": "Innovators 2.5%, early adopters 13.5%, early majority 34%, late majority 34%, laggards 16%.",
-      "why": "Early adopters are the opinion leaders the early majority watches. Recruit them before trying to convince everyone.",
+      "prompt": "Rogers' diffusion of innovations: what are the five adopter groups, and which one should you win first?",
+      "answer": "Innovators, early adopters, early majority, late majority, laggards. Win the early adopters first: they're the respected opinion leaders the early majority watches before committing.",
+      "why": "Innovators are too unusual to be role models, and the majority won't move on argument alone. Roughly one person in six is an innovator or early adopter.",
       "source": "Everett Rogers, Diffusion of Innovations"
     },
     {

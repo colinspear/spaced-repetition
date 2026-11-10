@@ -93,15 +93,15 @@
     {
       "id": "arc-08",
       "kind": "concept",
-      "prompt": "The CAP theorem: what does it actually say, and what does PACELC add?",
-      "answer": "If a network partition splits a distributed data system, the system must choose between consistency (every read sees the latest write) and availability (every request gets an answer). It cannot guarantee both during the partition. PACELC adds that even without a partition, there is a trade-off between latency and consistency.",
+      "prompt": "The CAP theorem: what does it actually say about distributed data systems?",
+      "answer": "When a network failure splits a distributed data system, it must choose between consistency (every read sees the latest write) and availability (every request gets an answer). It can't guarantee both until the split heals.",
       "points": [
         "It applies during a network partition",
-        "Choose consistency or availability, not both",
-        "It is not 'pick any two of three' at all times",
-        "PACELC: otherwise, latency vs consistency"
+        "The system must choose consistency or availability",
+        "It isn't 'pick any two of three' at all times",
+        "The choice is a design decision with business consequences"
       ],
-      "why": "Why it matters: an eventually consistent system can show different users different numbers for a while. That's a design choice someone should own, and reports should say so.",
+      "why": "Why it matters: a system that chooses availability can show different users different numbers for a while. Someone should own that choice, and reports should say so. A refinement called PACELC adds that even without a failure there's a trade-off between speed and consistency.",
       "source": "Brewer (2000); Gilbert & Lynch (2002); Abadi, PACELC (2012)"
     },
     {
@@ -130,14 +130,14 @@
     {
       "id": "arc-11",
       "kind": "concept",
-      "prompt": "Log-based change data capture vs polling a 'last updated' timestamp: what does polling miss?",
-      "answer": "Polling misses hard deletes and any intermediate changes between polls. It depends on every writer setting the timestamp correctly, and it puts query load on the source. Log-based change data capture reads the database's transaction log, so it captures every insert, update and delete, in order, with little load on the source.",
+      "prompt": "What is change data capture, and why is it better than periodically copying or polling a source system?",
+      "answer": "Change data capture (CDC) picks up every insert, update and delete from a source system as it happens, usually by reading the database's own transaction log, and passes those changes downstream. Periodic copies and polling for recently changed rows miss deletes and any changes that happened between checks, and they put load on the source.",
       "points": [
-        "Polling misses deletes",
-        "Polling misses intermediate changes",
-        "It relies on timestamps being maintained",
-        "It loads the source",
-        "Log-based CDC: every change, in order, low impact"
+        "Captures every insert, update and delete, in order",
+        "Usually reads the database's transaction log",
+        "Polling and periodic copies miss deletes",
+        "They also miss changes between checks",
+        "Lower load on the source system"
       ],
       "why": "Why it matters: missed deletes are a quiet source of wrong counts, and they can break retention and deletion obligations downstream.",
       "source": "Kleppmann, Designing Data-Intensive Applications (2017), ch. 11"
@@ -145,16 +145,16 @@
     {
       "id": "arc-12",
       "kind": "concept",
-      "prompt": "Data vault: what are hubs, links and satellites, and what is the model designed for?",
-      "answer": "Hubs hold business keys. Links hold relationships between business keys. Satellites hold descriptive attributes with their full history. The design favors auditability, loading in parallel, and absorbing new or changing sources without remodeling. It is an integration layer: star schemas are usually built on top of it for people to query.",
+      "prompt": "Data vault: what is this modeling approach designed for, and what does it trade away?",
+      "answer": "Data vault is a way of modeling the integration layer of a warehouse that separates business keys, the relationships between them, and descriptive attributes with their full history. It's designed for auditability, for loading many sources in parallel, and for absorbing new or changed sources without remodeling. It trades away simplicity for the people querying it, so reporting models such as star schemas are usually built on top.",
       "points": [
-        "Hubs: business keys",
-        "Links: relationships",
-        "Satellites: descriptive attributes with history",
-        "Built for auditability, parallel loads and source change",
-        "Not for direct querying: stars on top"
+        "Separates business keys, relationships and historized attributes",
+        "Built for auditability and traceability",
+        "Absorbs new and changing sources without remodeling",
+        "Hard to query directly",
+        "Reporting models are built on top of it"
       ],
-      "why": "Why it matters: it trades query simplicity for traceability. It fits places that need an audit trail of every source change.",
+      "why": "Why it matters: it fits organizations that need an audit trail of every source change. The three structures are called hubs, links and satellites.",
       "source": "Dan Linstedt & Michael Olschimke, Building a Scalable Data Warehouse with Data Vault 2.0 (2015)"
     },
     {

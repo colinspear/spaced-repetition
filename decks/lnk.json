@@ -82,13 +82,13 @@
     {
       "id": "lnk-07",
       "kind": "concept",
-      "prompt": "Why is an address string, on its own, a weak key for linking people?",
-      "answer": "Formats vary (St vs Street, unit designators, directionals). Many people share one address: households, multi-unit buildings, shelters. People move, so an address is only true for a period of time. PO boxes and institutional addresses add noise. Linking on address alone merges households into individuals.",
+      "prompt": "Why are names and addresses weak identifiers for matching records about people?",
+      "answer": "They're written inconsistently: nicknames, spelling variants, abbreviations, different orderings. They aren't unique: many people share a name, and households and buildings share an address. And they change: people move, marry and change names, so a value is only true for a period. Matching on them alone both misses real matches and merges different people.",
       "points": [
-        "Format variation",
-        "Shared addresses (households, multi-unit, shelters)",
-        "Temporal: people move",
-        "Conflates households with individuals"
+        "Inconsistent formats and spellings",
+        "Not unique: shared names, shared addresses",
+        "They change over time",
+        "Alone they cause both missed matches and false merges"
       ],
       "source": "General"
     },

@@ -15,13 +15,13 @@
     {
       "id": "prv-02",
       "kind": "concept",
-      "prompt": "What is k-anonymity, and what attack does it fail against?",
-      "answer": "Each record is indistinguishable from at least k-1 others on its quasi-identifiers. It fails against homogeneity: if everyone in the group shares the same sensitive value, that value is disclosed anyway. l-diversity addresses this, and background-knowledge attacks also defeat k-anonymity.",
+      "prompt": "What is k-anonymity, and why isn't it enough to protect people by itself?",
+      "answer": "A dataset is k-anonymous when each record looks the same as at least k-1 others on the attributes that could identify someone, such as age, postcode and gender. It isn't enough because if everyone in such a group shares the same sensitive value, that value is revealed anyway, and because an attacker who knows something extra about a person can still narrow them down.",
       "points": [
-        "Indistinguishable from k-1 others on quasi-identifiers",
-        "Homogeneity attack",
-        "Background knowledge attack",
-        "l-diversity as the fix for homogeneity"
+        "Each record is indistinguishable from at least k-1 others on identifying attributes",
+        "Fails when a whole group shares the same sensitive value",
+        "Fails against an attacker with outside knowledge",
+        "So it's one safeguard, not a guarantee"
       ],
       "source": "Sweeney (2002); Machanavajjhala et al. (2007)"
     },
@@ -40,14 +40,16 @@
     {
       "id": "prv-04",
       "kind": "concept",
-      "prompt": "Differential privacy in two sentences: what is guaranteed, and what does epsilon control?",
-      "answer": "Adding or removing any one person changes the probability of any output by at most a factor of e^epsilon, so results reveal little about any individual. A smaller epsilon means more noise and more privacy, and every query spends from a finite privacy-loss budget.",
+      "prompt": "What does differential privacy promise, and what is the trade-off?",
+      "answer": "It promises that the published results would be almost the same whether or not any one person's data was included, so the results reveal very little about any individual. It works by adding carefully calibrated random noise. The trade-off is accuracy: stronger privacy means more noise, and every additional statistic released from the same data uses up some of a fixed privacy budget.",
       "points": [
-        "One person's presence changes output probabilities by at most e^epsilon",
-        "Smaller epsilon = more noise, more privacy",
-        "Composition: queries spend a finite budget"
+        "Results are nearly the same with or without any one person",
+        "Achieved by adding calibrated noise",
+        "More privacy means less accuracy",
+        "Each release spends from a finite privacy budget"
       ],
-      "source": "Dwork & Roth, The Algorithmic Foundations of Differential Privacy (2014)"
+      "source": "Dwork & Roth, The Algorithmic Foundations of Differential Privacy (2014)",
+      "why": "The strength of the guarantee is set by a parameter called epsilon: smaller means more private and noisier."
     },
     {
       "id": "prv-05",

@@ -20,9 +20,9 @@
     {
       "id": "gov-02",
       "kind": "fact",
-      "prompt": "In the DAMA-DMBOK2 wheel, which knowledge area sits at the hub, and how many surround it?",
-      "answer": "Data Governance at the hub, with 10 knowledge areas around it (11 in total).",
-      "why": "The ten: architecture; modeling & design; storage & operations; security; integration & interoperability; document & content; reference & master data; warehousing & BI; metadata; data quality.",
+      "prompt": "In the DAMA-DMBOK wheel, which knowledge area sits at the hub, and what does that placement say?",
+      "answer": "Data governance. It sits at the centre of the other ten knowledge areas because it gives direction and oversight to all of them, which keeps them consistent with each other.",
+      "why": "The ten around it: architecture; modeling and design; storage and operations; security; integration and interoperability; documents and content; reference and master data; warehousing and business intelligence; metadata; data quality. You don't need to recite them.",
       "source": "DAMA-DMBOK2, ch. 1"
     },
     {
