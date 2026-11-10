@@ -25,7 +25,7 @@ It is built on Patrick Collison's [suggestion](https://x.com/patrickc/status/211
 1. Type your answer. **Check my answer** sends it to Claude, which evaluates it against the reference answer and key points. Facts use the fast model, and concept and judgment cards use the default one.
 2. Claude's verdict becomes the rating. **Next** accepts it, and **Change rating** overrides it. Claude judges how well you know it; the FSRS scheduler turns that into when you see the card again. Claude has no model of your forgetting curve, so it doesn't pick the interval.
 3. **Go deeper** streams a longer explanation aimed at your answer, and you can ask follow-up questions. The card is saved to the **Study** tab. Review is for recall and Study is for understanding: nothing in Study changes the schedule, and the review card waits until you press Next. After studying, rate honestly, so a card you didn't really know comes back soon.
-4. A card you knew moves straight to days. A miss or a shaky answer comes back once, about 10 minutes later, for one corrective try.
+4. A card you knew moves straight to days. A miss comes back about 10 minutes later. A partly-right answer gets one same-day retry and then waits for another day, and no card shows more than three times in a day (`maxShowingsPerDay`). The first real review log showed 36% of study time going to same-evening repeats, which is what this cap removes.
 5. **Mastery** is how long you'd likely still recall a card: learning (days), familiar (up to 3 weeks), solid (up to 3 months), mastered (longer).
 6. **Report a problem** saves a note for the next "review my learning" session, which fixes or retires the card. **Stop showing** takes a card out of your reviews; bring it back from the Catalog.
 
@@ -64,6 +64,7 @@ The app tells you how many cards are waiting and that they wait without penalty.
 | Deck | Cards | What it covers |
 | --- | --- | --- |
 | GOV Data governance | 12 | Roles, operating models, CDEs, quality dimensions, data mesh, policy vs standard, competing definitions |
+| STR Data strategy & value | 10 | Offense vs defense, single source vs multiple versions of truth, infonomics, ways to get value from data, analytics types, data literacy, DIKW, culture as the main obstacle, data as an asset, reporting value |
 | MET Metadata & lineage | 10 | Glossary vs catalog, static vs runtime lineage, why lineage breaks, holding tools to their claims, catalog rollout |
 | MOD Data modeling & databases | 14 | Normal forms and anomalies, keys, NULL logic, indexes, idempotent loads, grain, fact types, SCDs, conformed dimensions |
 | ARC Data architecture | 21 | Inmon vs Kimball, schema-on-read vs -write, ETL vs ELT, lakehouse and medallion layers, Lambda vs Kappa, CAP, storage-compute separation, CDC, data vault, MDM styles, fabric vs mesh, data contracts, semantic layers, event sourcing, Conway's law |
@@ -106,3 +107,7 @@ python -m venv .venv && .venv/bin/pip install "fsrs[optimizer]==6.3.2"
 Artifact database layout: `cards/{id}` (memory state), `reviews/{YYYY-MM-DD}` (that day's review log), `explanations/{id}`, `deepdives/{id}`, `study/{id}`, `feedback/{id}` (level marks), `custom/{id}` (added or rewritten cards), `flags/{id}`, `config/scheduler`, `insights/latest`.
 
 To update the published page from another Claude session, rebuild and publish `dist/card-catalog.html` to the artifact URL above.
+
+## Review sessions
+
+The Tuning tab has a prompt for a Claude Code session that reads the artifact's data and acts on it. Card counts in the deck table above drift as those sessions retire and add cards; `node build.mjs` prints the current total. Retired cards keep their ids and stay in the deck files with `"retired": true`. Level marks a session has acted on get a `resolved` field and stay as calibration examples.

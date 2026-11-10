@@ -23,6 +23,7 @@ import optimize  # noqa: E402
 
 def simulate(seed=3, cards=200, days=180, per_day_new=4):
     rng = random.Random(seed)
+    random.seed(seed)  # the app scheduler's fuzz uses the global generator
     true_params = list(DEFAULT_PARAMETERS)
     true_params[0:4] = [0.1, 0.6, 1.2, 4.0]  # forgets new material much faster than default
     true_params[8] = 1.2  # slower stability growth after each success
@@ -64,7 +65,31 @@ def simulate(seed=3, cards=200, days=180, per_day_new=4):
     return {"app": "card-catalog", "config": {"parameters": list(DEFAULT_PARAMETERS)}, "reviews": reviews}
 
 
+def check_timeline():
+    """A late review followed by an early one the next study day must count as one day apart."""
+    day = lambda n: f"2026-03-{n:02d}"
+    t = lambda n, h: int(datetime(2026, 3, n, h, tzinfo=timezone.utc).timestamp() * 1000)
+    reviews = [
+        {"day": day(1), "c": "a", "k": "fact", "r": 3, "t": t(1, 9)},
+        {"day": day(1), "c": "b", "k": "fact", "r": 3, "t": t(1, 23)},   # late on day 1
+        {"day": day(1), "c": "b", "k": "fact", "r": 3, "t": t(2, 2)},    # after midnight, same study day
+        {"day": day(2), "c": "b", "k": "fact", "r": 3, "t": t(2, 8)},    # early on day 2
+        {"day": day(2), "c": "a", "k": "fact", "r": 3, "t": t(2, 22)},
+        {"day": day(5), "c": "a", "k": "fact", "r": 3, "t": t(5, 7)},
+    ]
+    logs, ids = optimize.to_logs(reviews)
+    by = {}
+    gaps = []
+    for r, l in zip(reviews, logs):
+        if r["c"] in by:
+            gaps.append((r["c"], (l.review_datetime - by[r["c"]]).days))
+        by[r["c"]] = l.review_datetime
+    assert gaps == [("b", 0), ("b", 1), ("a", 1), ("a", 3)], gaps
+    assert optimize.cross_day_count(logs) == 3
+
+
 def main():
+    check_timeline()
     export = simulate()
     with tempfile.TemporaryDirectory() as td:
         p = os.path.join(td, "export.json")

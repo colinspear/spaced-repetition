@@ -1,15 +1,17 @@
 {
   "deck": "lnk",
   "code": "LNK",
-  "title": "Record linkage",
-  "blurb": "Fellegi-Sunter, blocking and thresholds: the math behind matching people, places and organizations across systems.",
+  "title": "Entity resolution & master data",
+  "blurb": "Deciding which records refer to the same person, place or thing, and keeping one trusted version: what it takes, and which trade-offs are yours to own.",
   "cards": [
     {
       "id": "lnk-01",
       "kind": "fact",
       "prompt": "Fellegi-Sunter: define the m- and u-probabilities for a field.",
       "answer": "m = P(field agrees | the records are a true match). u = P(field agrees | the records are not a match).",
-      "source": "Fellegi & Sunter (1969)"
+      "source": "Fellegi & Sunter (1969)",
+      "retired": true,
+      "retiredWhy": "Marked too detailed. Replaced by the leader-level rewrite you accepted."
     },
     {
       "id": "lnk-02",
@@ -22,7 +24,9 @@
         "Sum across fields plus prior (conditional independence)",
         "Weight is log-odds; convert to probability"
       ],
-      "source": "Fellegi & Sunter (1969); Splink documentation"
+      "source": "Fellegi & Sunter (1969); Splink documentation",
+      "retired": true,
+      "retiredWhy": "Marked too detailed: the weight arithmetic is implementation, not principle."
     },
     {
       "id": "lnk-03",
@@ -34,7 +38,9 @@
         "Errors in the blocking field cause unrecoverable misses",
         "Use several blocking rules, unioned"
       ],
-      "source": "Christen, Data Matching (2012)"
+      "source": "Christen, Data Matching (2012)",
+      "retired": true,
+      "retiredWhy": "Implementation detail, below the level marked just right."
     },
     {
       "id": "lnk-04",
@@ -46,14 +52,18 @@
         "Rare-value agreement is stronger evidence",
         "Term-frequency adjustment"
       ],
-      "source": "Splink documentation; Winkler"
+      "source": "Splink documentation; Winkler",
+      "retired": true,
+      "retiredWhy": "Implementation detail, below the level marked just right."
     },
     {
       "id": "lnk-05",
       "kind": "fact",
       "prompt": "How are u-probabilities usually estimated, and why does that work?",
       "answer": "By randomly sampling record pairs. Almost all random pairs are non-matches, so their agreement rate approximates u. m comes from EM within blocks or from labeled pairs.",
-      "source": "Splink documentation"
+      "source": "Splink documentation",
+      "retired": true,
+      "retiredWhy": "Implementation detail, below the level marked just right."
     },
     {
       "id": "lnk-06",
@@ -94,6 +104,54 @@
         "Report both, not the rate alone"
       ],
       "source": "Christen, Data Matching (2012)"
+    },
+    {
+      "id": "lnk-09",
+      "kind": "concept",
+      "prompt": "What is entity resolution, and why should a data leader care about it?",
+      "answer": "Entity resolution, also called record linkage or matching, decides which records within or across systems refer to the same real-world person, organization, place or thing when they share no reliable identifier. Without it the same entity is counted several times, its history is split across systems, and nobody can produce a single view of a customer or client. It brings two errors to govern: false merges, which combine different entities, and missed matches.",
+      "points": [
+        "Decides which records refer to the same real-world entity",
+        "Needed when there is no shared, reliable identifier",
+        "Without it: double counting, split history, no single view",
+        "Two errors to govern: false merges and missed matches"
+      ],
+      "why": "Why it matters: how many wrong merges and missed matches are acceptable is a business decision with real consequences, so it shouldn't be left as a technical default.",
+      "source": "Christen, Data Matching (2012); DAMA-DMBOK2, ch. 10"
+    },
+    {
+      "id": "lnk-10",
+      "kind": "concept",
+      "prompt": "Deterministic vs probabilistic matching: how does each decide, and what does each trade away?",
+      "answer": "Deterministic matching links records when chosen fields agree exactly, or by fixed rules. It's simple, fast and easy to explain, but it misses true matches that contain typos, name changes or missing values. Probabilistic matching weighs the evidence from several fields and scores how likely a pair is to be a match. It finds more true matches in messy data, but it needs thresholds, tuning and a review process for the uncertain cases.",
+      "points": [
+        "Deterministic: exact agreement or fixed rules",
+        "Simple and explainable, but misses messy true matches",
+        "Probabilistic: weighs evidence across fields into a score",
+        "Finds more matches, but needs thresholds, tuning and review"
+      ],
+      "source": "Christen, Data Matching (2012); Fellegi & Sunter (1969)"
+    },
+    {
+      "id": "lnk-11",
+      "kind": "concept",
+      "prompt": "In master data management, what is a golden record, and what are survivorship rules?",
+      "answer": "A golden record is the single best version of an entity, assembled from the matched records in different systems. Survivorship rules decide which source's value wins for each attribute when the sources disagree: for example the most recently updated address, or the most trusted system for a date of birth. The rules encode judgments about which source to trust for what, so the business should own them and they should be written down.",
+      "points": [
+        "Golden record: the best single version, built from matched records",
+        "Survivorship rules: which value wins, attribute by attribute",
+        "Typical rules: most recent, most trusted source, most complete",
+        "The rules are business decisions: owned and documented"
+      ],
+      "source": "DAMA-DMBOK2, ch. 10 (Reference and Master Data); Loshin, Master Data Management (2009)"
+    },
+    {
+      "id": "lnk-12",
+      "kind": "fact",
+      "prompt": "Master data, reference data, transactional data: what is each?",
+      "answer": "Master data: the core entities the organization operates on, such as customers, products, employees and locations. Reference data: the code lists and classifications used to categorize other data, such as country or status codes. Transactional data: records of events involving those entities, such as orders and payments.",
+      "why": "Why it matters: master and reference data are shared across systems, so an error there spreads everywhere. That's why they get governed first.",
+      "source": "DAMA-DMBOK2, ch. 10"
     }
   ]
 }

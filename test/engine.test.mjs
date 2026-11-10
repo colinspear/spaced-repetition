@@ -175,3 +175,33 @@ test("focus decks introduce their new cards first", () => {
   const plain = buildQueue({ cards, mem: new Map(), now: T0, config: { ...cfg(), newPerDay: 4 }, sched }).queue;
   assert.deepEqual(plain, ["gov-01", "arc-01", "mod-01", "gov-02"]);
 });
+
+test("same-day cap: a partly-right answer gets one retry, then tomorrow; nothing shows more than three times a day", () => {
+  const config = cfg();
+  const sched = schedulerFor(config, { fuzz: false });
+  const card = { id: "c", deck: "mod", kind: "concept" };
+  const go = (mem, rating, minutes, seenToday) => applyRating({ mem, card, rating, now: T0 + minutes * MINUTE, config, sched, seenToday });
+  // Partly, then Partly again: the second showing moves on to days.
+  const a1 = go(undefined, 2, 0, 0);
+  assert.ok(isLearning(a1.mem), "first Partly comes back today");
+  const a2 = go(a1.mem, 2, 15, 1);
+  assert.equal(a2.mem.state, State.Review);
+  assert.ok(a2.intervalMs >= DAY && a2.movedOn && a2.log.cap === 1);
+  // Miss, miss, miss: retried twice, then tomorrow.
+  const b1 = go(undefined, 1, 0, 0);
+  const b2 = go(b1.mem, 1, 10, 1);
+  assert.ok(isLearning(b2.mem), "a second miss still gets one more try");
+  const b3 = go(b2.mem, 1, 20, 2);
+  assert.equal(b3.mem.state, State.Review);
+  assert.ok(b3.intervalMs >= DAY && b3.intervalMs <= 2 * DAY, "a card that was never recalled comes back tomorrow");
+  // A good retry is not flagged as capped.
+  const c2 = go(b1.mem, 3, 10, 1);
+  assert.equal(c2.mem.state, State.Review);
+  assert.equal(c2.movedOn, false);
+  // A card still in learning from yesterday follows the same rule on its first showing today.
+  const d = applyRating({ mem: a1.mem, card, rating: 2, now: T0 + DAY, config, sched, seenToday: 0 });
+  assert.ok(isLearning(d.mem));
+  // The preview on the buttons matches what rating does.
+  const pv = previewIntervals({ mem: a1.mem, card, now: T0 + 15 * MINUTE, config, seenToday: 1 });
+  assert.ok(pv[1] < DAY && pv[2] >= DAY && pv[3] >= pv[2]);
+});

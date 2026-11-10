@@ -2,7 +2,7 @@
   "deck": "met",
   "code": "MET",
   "title": "Metadata & lineage",
-  "blurb": "What catalogs hold, how lineage gets extracted, where it breaks, and how to hold a tool to its claims.",
+  "blurb": "What metadata, catalogs and lineage are for, and how to tell a useful catalog from shelfware.",
   "cards": [
     {
       "id": "met-01",
@@ -45,7 +45,9 @@
         "Indirection: synonyms, cross-database and linked-server references",
         "Control flow: static parsing can't know which branch runs"
       ],
-      "source": "General; vendor documentation on dependency tracking"
+      "source": "General; vendor documentation on dependency tracking",
+      "retired": true,
+      "retiredWhy": "Marked not useful: too specific to one situation, not a foundational principle."
     },
     {
       "id": "met-05",
@@ -58,7 +60,9 @@
         "Embedded native queries need SQL parsing",
         "Parameters and gateways can hide the real source"
       ],
-      "source": "General"
+      "source": "General",
+      "retired": true,
+      "retiredWhy": "Same family as met-04: a tool-integration detail, not a foundational principle."
     },
     {
       "id": "met-06",
@@ -86,7 +90,9 @@
       "prompt": "What is OpenLineage, and what are its three core entities?",
       "answer": "An open standard (LF AI & Data Foundation) for emitting runtime lineage events from pipelines. Its core entities are Job, Run and Dataset, extended through facets.",
       "why": "Marquez is the reference backend. Airflow, Spark and dbt have integrations.",
-      "source": "openlineage.io"
+      "source": "openlineage.io",
+      "retired": true,
+      "retiredWhy": "Tool-standard trivia, below the level marked just right."
     },
     {
       "id": "met-09",
@@ -101,7 +107,9 @@
         "A test fixture with expected graph, demonstrated on your data",
         "Refresh cadence, manual vs automated, remedy on failure"
       ],
-      "source": "Synthesis"
+      "source": "Synthesis",
+      "retired": true,
+      "retiredWhy": "Replaced by ldr-11, a general version about holding any vendor to a claim."
     },
     {
       "id": "met-10",
@@ -116,6 +124,29 @@
         "Iterate with stewards; prune stale entries"
       ],
       "source": "Synthesis"
+    },
+    {
+      "id": "met-11",
+      "kind": "concept",
+      "prompt": "What is data lineage, and what does it let an organization do?",
+      "answer": "Lineage is the record of where data came from, where it moved and how it was changed on the way to where it's used. It supports four things: impact analysis before a change, root-cause analysis when a number looks wrong, evidence for audit and compliance (showing where a reported figure or a piece of personal data came from), and trust, because people use data more readily when they can see its origin.",
+      "points": [
+        "Lineage = origin, movement and transformation of data",
+        "Impact analysis before a change",
+        "Root-cause analysis when a number looks wrong",
+        "Evidence for audit and compliance",
+        "Trust in the data"
+      ],
+      "why": "Why it matters: lineage is expensive to build, so decide which of these uses you're paying for before choosing how much of it to capture.",
+      "source": "DAMA-DMBOK2, ch. 12 (Metadata Management)"
+    },
+    {
+      "id": "met-12",
+      "kind": "fact",
+      "prompt": "The FAIR principles for data: what do the four letters stand for?",
+      "answer": "Findable, Accessible, Interoperable, Reusable.",
+      "why": "Published for research data in 2016 and now used widely as a checklist for any data asset. FAIR means usable by people and machines; it doesn't mean open. Metadata does most of the work: identifiers, descriptions, formats, licences.",
+      "source": "Wilkinson et al., The FAIR Guiding Principles for scientific data management and stewardship (Scientific Data, 2016)"
     }
   ]
 }

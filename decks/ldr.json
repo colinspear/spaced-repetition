@@ -114,6 +114,20 @@
         "Avoid one-off hacks; surface risks early"
       ],
       "source": "Synthesis: Kotter (short-term wins); product practice"
+    },
+    {
+      "id": "ldr-11",
+      "kind": "judgment",
+      "prompt": "A vendor says a capability you need is 'supported.' How do you hold them to it before and after you sign?",
+      "answer": "Turn the capability into testable acceptance criteria in your own terms: the systems, versions and scope it must work on. Require a proof of concept on your own environment and data, with a known test case and its expected result. Ask for reference customers with a similar setup, and separate what ships today from what's on the roadmap. Put the criteria, the timeline and the remedy for failure into the contract.",
+      "points": [
+        "Testable acceptance criteria in your own terms (systems, versions, scope)",
+        "Proof of concept on your own environment and data, with an expected result",
+        "Reference customers with a similar setup",
+        "Separate what ships today from the roadmap",
+        "Criteria, timeline and remedy in the contract"
+      ],
+      "source": "Standard procurement practice (acceptance testing, proof of concept)"
     }
   ]
 }

@@ -134,6 +134,48 @@
         "Converge only where a shared number is needed; reports name their definition"
       ],
       "source": "Synthesis: DMBOK2 ch. 3 and 12"
+    },
+    {
+      "id": "gov-13",
+      "kind": "concept",
+      "prompt": "Data governance vs data management: what's the difference?",
+      "answer": "Governance decides and oversees: it sets the decision rights, policies and standards for data, and checks that they're followed. Management executes: it's the work of carrying those decisions out across the data lifecycle, such as modeling, storing, integrating, securing and improving data. DMBOK defines data governance as the exercise of authority and control (planning, monitoring and enforcement) over the management of data assets.",
+      "points": [
+        "Governance: decision rights, policies, standards and oversight",
+        "Management: executing those decisions across the lifecycle",
+        "Governance makes sure data is managed properly; it doesn't do the managing",
+        "DMBOK: authority and control over the management of data assets"
+      ],
+      "source": "DAMA-DMBOK2, ch. 3 (Data Governance)"
+    },
+    {
+      "id": "gov-14",
+      "kind": "concept",
+      "prompt": "What is the data lifecycle, and why manage data across all of it?",
+      "answer": "Data has a life: it's planned, designed, created or obtained, stored and maintained, used, enhanced, and eventually disposed of. Each stage has its own costs and risks. Quality is cheapest to build in at creation, value only arises at use, and data kept past its useful life adds cost and risk, so disposal needs a plan too.",
+      "points": [
+        "Stages run from planning and creation, through use, to disposal",
+        "Quality is cheapest to build in at creation",
+        "Value only arises when data is used",
+        "Keeping data past its useful life adds cost and risk"
+      ],
+      "source": "DAMA-DMBOK2, ch. 1 (data lifecycle)"
+    },
+    {
+      "id": "gov-15",
+      "kind": "fact",
+      "prompt": "DMBOK's data management maturity levels, 1 to 5.",
+      "answer": "1 Initial (ad hoc). 2 Repeatable. 3 Defined. 4 Managed. 5 Optimized. Level 0 means no capability at all.",
+      "why": "Why it matters: a maturity assessment is for baselining and for finding the next sensible step. Chasing a level number for its own sake misses the point.",
+      "source": "DAMA-DMBOK2, ch. 15 (Data Management Maturity Assessment)"
+    },
+    {
+      "id": "gov-16",
+      "kind": "fact",
+      "prompt": "How do most data quality frameworks define 'quality'?",
+      "answer": "Fitness for use: data is high quality when it meets the needs of the people and processes that use it.",
+      "why": "So quality is relative to a purpose. The same dataset can be fit for a trend report and unfit for billing, which is why quality rules should come from what data consumers need.",
+      "source": "Wang & Strong, Beyond Accuracy: What Data Quality Means to Data Consumers (1996); Juran"
     }
   ]
 }

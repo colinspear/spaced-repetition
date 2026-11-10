@@ -7,9 +7,10 @@ This is the "review my learning and improve the efficiency of your scheduler" st
 
 What it does, and why each step exists:
   1. Rebuilds py-fsrs ReviewLogs from the export. The app counts elapsed time in study days
-     (4am rollover); py-fsrs counts 24h periods. Reviews are mapped onto a timeline where every
-     study day starts at UTC midnight and a day's reviews are compressed into its first hour,
-     so py-fsrs sees exactly the same elapsed-day values the app used.
+     (4am rollover); py-fsrs counts whole 24h periods. Reviews are mapped onto a timeline where
+     every study day starts at UTC midnight and each review is offset by its position in the
+     whole log (a fraction of a second apart). A later review always has a larger offset, so
+     py-fsrs sees exactly the elapsed-day values the app used, and same-day order is kept.
   2. Honest evaluation: fits on the first 80% of reviews (by time) and scores held-out later
      reviews. A refit is only proposed if it beats the current parameters on data it didn't see.
   3. Refits on everything and proposes the new 21 parameters.
@@ -52,16 +53,19 @@ def load(path):
 
 
 def to_logs(reviews):
-    """Map app reviews onto a py-fsrs timeline with identical elapsed-day arithmetic."""
-    first_t = {}
-    for r in reviews:
-        first_t.setdefault(r["day"], r["t"])
+    """Map app reviews onto a py-fsrs timeline with identical elapsed-day arithmetic.
+
+    `reviews` must be sorted by time. The offset grows with position in the log and stays under
+    a day in total, so (later - earlier).days equals the difference in study days exactly. An
+    offset that restarted each day would make a late review followed by an early one the next
+    day look like the same day.
+    """
+    step_ms = min(1000.0, 80_000_000 / max(len(reviews), 1))  # total offset < 22.3 hours
     ids = {}
     logs = []
-    for r in reviews:
+    for i, r in enumerate(reviews):
         y, m, d = (int(x) for x in r["day"].split("-"))
-        offset_ms = min(max(r["t"] - first_t[r["day"]], 0), 23.5 * 3600 * 1000) / 24  # < 1h
-        dt = datetime(y, m, d, tzinfo=timezone.utc) + timedelta(milliseconds=offset_ms)
+        dt = datetime(y, m, d, tzinfo=timezone.utc) + timedelta(milliseconds=i * step_ms)
         cid = ids.setdefault(r["c"], len(ids) + 1)
         dur = r.get("d")
         logs.append(ReviewLog(card_id=cid, rating=Rating(r["r"]), review_datetime=dt, review_duration=int(dur) if dur else None))

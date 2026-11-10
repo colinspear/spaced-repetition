@@ -92,6 +92,10 @@ assert.equal(await phone.getAttribute(".rate-btn.next", "data-r"), "2", "undo re
 await phone.click('[data-act="override"]');
 await phone.click('.rate-btn.r1');
 // next card is a fact: it gets graded too (quick tier), and Next accepts Claude's rating
+// the new deck order puts a strategy concept card next: answer it without Claude
+assert.equal((await phone.textContent(".callno")).trim(), "STR·01");
+await phone.click('[data-act="reveal"]');
+await phone.click(".rate-btn.r3");
 assert.equal((await phone.textContent(".callno")).trim(), "MET·01");
 assert.ok(await phone.isDisabled('[data-act="grade"]'), "grading needs an answer");
 await phone.fill("#answer-box", "The business glossary");
@@ -124,7 +128,7 @@ await phone.evaluate(() => (location.hash = "review"));
 await phone.waitForSelector(".rate-btn.next");
 assert.equal((await phone.textContent(".callno")).trim(), "MET·01", "review card waited");
 await phone.click(".rate-btn.next");
-assert.match(await phone.textContent(".status"), /1 done · \d+ to go · 1 coming back/);
+assert.match(await phone.textContent(".status"), /2 done · \d+ to go · 1 coming back/);
 await phone.click('[data-act="reveal"]');
 await phone.waitForSelector(".rate");
 if (shotsDir) await phone.screenshot({ path: `${shotsDir}/phone-back.png`, fullPage: true });
@@ -239,6 +243,22 @@ assert.equal((await fx.textContent(".callno")).trim(), onScreen, "card on screen
 await fx.click('[data-act="reveal"]');
 await fx.click(".rate-btn.r3");
 assert.equal((await fx.textContent(".callno")).trim(), "ARC·01");
+
+// Same-day cap: a card already retried today moves to another day on a second "Partly"
+const capPage = await newPage({ viewport: { width: 800, height: 900 } }, true, () => {
+  const now = Date.now(), d = new Date(now - 4 * 3600000), p = (n) => String(n).padStart(2, "0");
+  const day = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  window.__mock.docs.set("cards/gov-01", { state: 1, step: 0, stability: 1.2931, difficulty: 5.1, due: now - 1000, lastReview: now - 15 * 60000, reps: 1, lapses: 0, agains: 0, suspended: false });
+  window.__mock.docs.set(`reviews/${day}`, { day, items: [{ c: "gov-01", k: "concept", r: 2, t: now - 15 * 60000, st: 0, s: null, e: null, p: null, i: null, d: 60000 }] });
+});
+assert.equal((await capPage.textContent(".callno")).trim(), "GOV·01", "the retry comes up first");
+await capPage.click('[data-act="reveal"]');
+assert.match(await capPage.textContent(".rate-btn.r1"), /10m/);
+assert.match(await capPage.textContent(".rate-btn.r2"), /\dd/, "a second Partly schedules days, not minutes");
+await capPage.click(".rate-btn.r2");
+assert.match(await capPage.textContent("#toast"), /enough of this card for today/);
+assert.equal(await capPage.evaluate(() => window.__mock.docs.get("cards/gov-01").state), 2);
+assert.match(await capPage.textContent(".status"), /1 done/);
 
 // 3. Explain flow for a missed card (seeded memory with misses).
 const ex = await newPage({ viewport: { width: 800, height: 900 } }, true, () => {

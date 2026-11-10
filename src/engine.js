@@ -23,6 +23,10 @@ export const DEFAULT_CONFIG = Object.freeze({
   intervalScale: 1, // stage-1 personal calibration (see fitScale)
   deckWeights: {},
   focusDecks: [], // new cards from these decks are introduced first
+  // A card is shown at most this many times in one study day. A partly-right answer on a card
+  // still being learned gets one same-day retry, then moves to tomorrow. Added after the first
+  // real review log showed 35% of study time going to same-evening repeats of the same cards.
+  maxShowingsPerDay: 3,
   source: "defaults",
   updatedAt: null,
   history: [],
@@ -206,10 +210,17 @@ export function nextCard({ queue, cards, mem, now, lastId = null, learnAheadMs =
 }
 
 /** Apply a rating. Returns the new memory record and a review-log row. */
-export function applyRating({ mem, card, rating, now, config, sched }) {
+export function applyRating({ mem, card, rating, now, config, sched, seenToday = 0 }) {
   const base = isNew(mem) ? blankMemory(now) : { ...blankMemory(now), ...mem };
   const e = elapsedDays(base, now, config.rolloverHour);
   const opts = kindOpts(config, card.kind);
+  // Same-day cap: in the learning steps, the second showing today moves on unless it was a
+  // complete miss, and the last allowed showing moves on whatever the rating. "Moves on" means
+  // FSRS schedules the card in days from its stability, so it comes back tomorrow at the earliest.
+  const inSteps = !isNew(base) && (base.state === State.Learning || base.state === State.Relearning);
+  const cap = Math.max(1, config.maxShowingsPerDay ?? 3);
+  const movedOn = inSteps && ((seenToday >= 1 && rating >= Rating.Hard) || seenToday + 1 >= cap);
+  if (movedOn) { opts.learningSteps = []; opts.relearningSteps = []; }
   const p = isNew(base) ? null : sched.retrievability(base.stability * opts.intervalScale, e);
   const fsrsCard = { state: base.state, step: base.step, stability: base.stability, difficulty: base.difficulty, due: base.due, lastReview: base.lastReview };
   const { card: c, intervalDays, intervalMs } = sched.review(fsrsCard, rating, now, e, opts);
@@ -221,19 +232,20 @@ export function applyRating({ mem, card, rating, now, config, sched }) {
     agains: base.agains + (rating === Rating.Again ? 1 : 0),
   };
   const log = { c: card.id, k: card.kind, r: rating, t: now, st: isNew(base) ? 0 : base.state, s: base.stability, e, p, i: intervalDays };
-  return { mem: next, log, intervalMs };
+  if (movedOn && rating < Rating.Good) log.cap = 1;
+  return { mem: next, log, intervalMs, movedOn: movedOn && rating < Rating.Good };
 }
 
 /** Button labels: what each rating would schedule (no fuzz). */
-export function previewIntervals({ mem, card, now, config }) {
+export function previewIntervals({ mem, card, now, config, seenToday = 0 }) {
   const sched = schedulerFor(config, { fuzz: false });
   const out = {};
-  for (const r of [1, 2, 3, 4]) out[r] = applyRating({ mem, card, rating: r, now, config, sched }).intervalMs;
+  for (const r of [1, 2, 3, 4]) out[r] = applyRating({ mem, card, rating: r, now, config, sched, seenToday }).intervalMs;
   return out;
 }
 /** The memory state a rating would produce (no fuzz), for showing mastery before committing. */
-export function previewOutcome({ mem, card, now, config, rating }) {
-  return applyRating({ mem, card, rating, now, config, sched: schedulerFor(config, { fuzz: false }) });
+export function previewOutcome({ mem, card, now, config, rating, seenToday = 0 }) {
+  return applyRating({ mem, card, rating, now, config, sched: schedulerFor(config, { fuzz: false }), seenToday });
 }
 
 /**

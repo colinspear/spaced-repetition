@@ -28,7 +28,8 @@
         "Insertion anomaly",
         "Deletion anomaly"
       ],
-      "source": "Codd (1970-72); standard database texts"
+      "source": "Codd (1970-72); standard database texts",
+      "why": "Hook: one anomaly per write operation. UPDATE changes one copy and misses the others. INSERT can't add a fact without another fact you don't have. DELETE removes one fact and takes another with it."
     },
     {
       "id": "mod-03",
@@ -46,26 +47,28 @@
     {
       "id": "mod-04",
       "kind": "concept",
-      "prompt": "Surrogate vs natural keys: why do warehouses use meaningless surrogate keys?",
-      "answer": "Natural keys carry business meaning, so they change, get reused, and arrive formatted differently from different sources. A surrogate key is a stable, meaningless identifier that insulates the model from those changes and makes history tracking (Type 2 dimensions) possible. Keep the natural key as an attribute with a uniqueness rule so you can still look rows up by it.",
+      "prompt": "What is a surrogate key, and why use one instead of a natural (business) key to identify rows?",
+      "answer": "A surrogate key is an identifier the system generates that carries no business meaning, such as a sequence number. A natural key is an identifier from the real world, such as an email address or a product code. Natural keys change, get reused and arrive in different formats from different systems, and every change ripples through the tables that reference them. A surrogate stays stable, so relationships and history survive those changes. Keep the natural key as an attribute with a uniqueness rule, so duplicates are still caught and people can look records up by it.",
       "points": [
-        "Natural keys change, get reused, vary across sources",
-        "Surrogates are stable and meaningless",
-        "Surrogates enable Type 2 history",
-        "Keep the natural key as a constrained attribute"
+        "Surrogate: system-generated, no business meaning",
+        "Natural: a real-world identifier",
+        "Natural keys change, get reused and vary across systems",
+        "A stable surrogate keeps relationships and history intact",
+        "Keep the natural key as a unique attribute"
       ],
-      "source": "Kimball & Ross"
+      "source": "Kimball & Ross; standard database texts"
     },
     {
       "id": "mod-05",
       "kind": "concept",
-      "prompt": "Why does `WHERE x NOT IN (SELECT y FROM t)` return no rows when one y is NULL?",
-      "answer": "SQL uses three-valued logic. Any comparison with NULL is UNKNOWN, not TRUE or FALSE. NOT IN expands to x <> y1 AND x <> y2 AND ..., and one UNKNOWN term makes the whole conjunction UNKNOWN or FALSE, never TRUE. WHERE keeps only TRUE rows. Use NOT EXISTS, or filter out the NULLs.",
+      "prompt": "What does NULL mean in SQL, and how does it silently change query results?",
+      "answer": "NULL means a value is missing or unknown; it isn't zero or an empty string. Any comparison with NULL returns UNKNOWN rather than true or false, and a filter keeps only rows that are true, so rows with NULLs silently drop out of filters and joins. Aggregates such as SUM and AVG skip NULLs, and counting a column doesn't count them. Decide what a missing value means for each field, and handle NULLs explicitly.",
       "points": [
-        "Comparisons with NULL are UNKNOWN",
-        "WHERE keeps only TRUE",
-        "NOT IN is a chain of <> joined by AND",
-        "Use NOT EXISTS or exclude NULLs"
+        "NULL = missing or unknown, not zero or empty",
+        "Comparisons with NULL return UNKNOWN (three-valued logic)",
+        "Filters and joins silently drop those rows",
+        "Aggregates skip NULLs",
+        "Decide what missing means; handle it explicitly"
       ],
       "source": "ISO SQL semantics; any SQL reference"
     },
@@ -167,6 +170,42 @@
         "Persuade with their own numbers"
       ],
       "source": "Synthesis"
+    },
+    {
+      "id": "mod-15",
+      "kind": "concept",
+      "prompt": "ACID: what do the four letters guarantee about a database transaction?",
+      "answer": "Atomicity: all of a transaction's changes happen, or none do. Consistency: a transaction takes the database from one valid state to another, with every constraint still holding. Isolation: transactions running at the same time don't interfere, so the result is as if they ran one after another. Durability: once a transaction is committed, its changes survive a crash.",
+      "points": [
+        "Atomicity: all or nothing",
+        "Consistency: valid state to valid state",
+        "Isolation: concurrent transactions don't interfere",
+        "Durability: committed changes survive failure"
+      ],
+      "why": "Why it matters: ACID is what lets a system of record be trusted. Many distributed and analytical stores relax parts of it for scale, so ask which guarantees a platform actually gives.",
+      "source": "Haerder & Reuter, Principles of Transaction-Oriented Database Recovery (1983)"
+    },
+    {
+      "id": "mod-16",
+      "kind": "concept",
+      "prompt": "OLTP vs OLAP: how do the two workloads differ, and why does it matter for design?",
+      "answer": "OLTP (online transaction processing) runs the business: many short reads and writes of individual records, on current data, in a normalized design that protects integrity. OLAP (online analytical processing) analyzes the business: fewer, heavier queries that scan many rows of historical data, in a design shaped for reading. Heavy analysis on the transactional system slows operations, which is why analytical copies such as warehouses exist.",
+      "points": [
+        "OLTP: many short reads and writes of single records, current data",
+        "OLTP designs are normalized for integrity",
+        "OLAP: fewer, heavier queries over many rows of history",
+        "OLAP designs are shaped for reading",
+        "Separate analytical copies protect operational systems"
+      ],
+      "source": "Standard database texts; Codd et al. coined OLAP (1993)"
+    },
+    {
+      "id": "mod-17",
+      "kind": "fact",
+      "prompt": "Conceptual, logical and physical data models: what does each describe?",
+      "answer": "Conceptual: the business entities and relationships, in business terms, with no technical detail. Logical: entities, attributes, keys and relationships, fully defined but independent of any database product. Physical: the tables, columns, data types and indexes for a specific database.",
+      "why": "Why it matters: disagreements about meaning should be settled at the conceptual level, with the business, before anyone argues about tables.",
+      "source": "DAMA-DMBOK2, ch. 5 (Data Modeling and Design)"
     }
   ]
 }

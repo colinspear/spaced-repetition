@@ -9,7 +9,7 @@
       "kind": "fact",
       "prompt": "Inmon's definition of a data warehouse: its four properties.",
       "answer": "Subject-oriented, integrated, time-variant, non-volatile.",
-      "why": "Why it matters: it's the test of whether a 'warehouse' really is one. A pile of copied tables that isn't integrated, or keeps no history, is a staging area whatever it's called.",
+      "why": "Hook: Inmon's warehouse keeps data in TINS: Time-variant, Integrated, Non-volatile, Subject-oriented. Two are about content (subject-oriented, integrated) and two about time (time-variant, non-volatile). Why it matters: it's the test of whether a 'warehouse' really is one. A pile of copied tables that isn't integrated, or keeps no history, is a staging area whatever it's called.",
       "source": "W. H. Inmon, Building the Data Warehouse (1992)"
     },
     {

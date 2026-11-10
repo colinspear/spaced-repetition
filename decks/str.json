@@ -1,0 +1,118 @@
+{
+  "deck": "str",
+  "code": "STR",
+  "title": "Data strategy & value",
+  "blurb": "How data creates value and how to argue for it: the frameworks a chief data officer is expected to know.",
+  "cards": [
+    {
+      "id": "str-01",
+      "kind": "concept",
+      "prompt": "DalleMule and Davenport's data strategy framework: what are 'defense' and 'offense', and what is the point of the distinction?",
+      "answer": "Defense minimizes downside risk: compliance, security, privacy, data integrity and a single source of truth. Offense supports business objectives: growth, customer insight and better decisions, with flexibility in how data is used. Every organization needs both and can't maximize both, so strategy means choosing the balance that fits its industry and regulation, and revisiting that choice.",
+      "points": [
+        "Defense: risk, compliance, security, integrity, a single source of truth",
+        "Offense: value, insight, better decisions, flexibility",
+        "You need both and can't maximize both",
+        "Choose the balance deliberately; it depends on industry and regulation"
+      ],
+      "source": "DalleMule & Davenport, What's Your Data Strategy? (Harvard Business Review, 2017)"
+    },
+    {
+      "id": "str-02",
+      "kind": "concept",
+      "prompt": "Single source of truth vs multiple versions of the truth: how can an organization have both?",
+      "answer": "The single source of truth is one authoritative, governed copy of core data, such as customer or product records. Multiple versions of the truth are purpose-specific views derived from it, where a business unit transforms the same data for its own decisions. Both work when every version is derived from the single source by a documented transformation, so any difference can be explained. Trouble starts when versions are built from separate copies.",
+      "points": [
+        "Single source: one authoritative, governed copy of core data",
+        "Multiple versions: purpose-specific views derived from it",
+        "Derivations are documented, so differences are explainable",
+        "Uncontrolled separate copies are the real problem"
+      ],
+      "source": "DalleMule & Davenport, What's Your Data Strategy? (Harvard Business Review, 2017)"
+    },
+    {
+      "id": "str-03",
+      "kind": "fact",
+      "prompt": "Laney's 'infonomics': what three things should an organization do with information as an asset?",
+      "answer": "Measure it, manage it, monetize it.",
+      "why": "Information behaves like an asset but isn't on the balance sheet, so it tends to be under-managed. Laney's argument is that once you measure its value, it starts being managed like other assets.",
+      "source": "Douglas Laney, Infonomics (2017)"
+    },
+    {
+      "id": "str-04",
+      "kind": "fact",
+      "prompt": "Wixom and Ross's three ways to get value from data.",
+      "answer": "Improving: use data to make internal processes and decisions better. Wrapping: add data and analytics to existing products and services. Selling: offer information as a product in its own right.",
+      "why": "Improving is where most organizations should start, because it uses data they already have for decisions they already make.",
+      "verify": true,
+      "source": "Wixom & Ross, How to Monetize Your Data (MIT Sloan Management Review, 2017)"
+    },
+    {
+      "id": "str-05",
+      "kind": "fact",
+      "prompt": "The four types of analytics, from hindsight to foresight, and the question each answers.",
+      "answer": "Descriptive: what happened? Diagnostic: why did it happen? Predictive: what will happen? Prescriptive: what should we do?",
+      "why": "The usual trap is jumping to predictive work before descriptive reporting is trusted. Each step depends on the data foundations under it.",
+      "source": "Gartner's analytic ascendancy model (2012)"
+    },
+    {
+      "id": "str-06",
+      "kind": "fact",
+      "prompt": "Define data literacy.",
+      "answer": "The ability to read, work with, analyze and argue with data, in context.",
+      "why": "It's a skill for everyone who makes decisions, not only specialists, and it's as much about questioning data as producing it. Gartner's wording: read, write and communicate data in context.",
+      "source": "Bhargava & D'Ignazio, Designing Tools and Activities for Data Literacy Learners (2015); Gartner"
+    },
+    {
+      "id": "str-07",
+      "kind": "fact",
+      "prompt": "The DIKW hierarchy: what are the four levels?",
+      "answer": "Data, information, knowledge, wisdom.",
+      "why": "Data is raw facts. Information is data given context and meaning. Knowledge is information applied. Wisdom is judgment about what to do. The reminder: collecting data doesn't produce decisions by itself.",
+      "source": "Russell Ackoff, From Data to Wisdom (1989)"
+    },
+    {
+      "id": "str-08",
+      "kind": "concept",
+      "prompt": "Executive surveys keep finding the same main obstacle to becoming data-driven. What is it, and what follows for a data leader?",
+      "answer": "People, process and culture, far more than technology. In the long-running NewVantage Partners executive survey, a large majority of respondents each year name cultural and organizational factors as the principal barrier, and only a small minority name technology. So a data strategy that is mostly a technology roadmap misses the main problem: budget and attention have to go to adoption, incentives, skills and how leaders behave.",
+      "points": [
+        "The main obstacle is people, process and culture, not technology",
+        "A large majority say so in annual executive surveys",
+        "A technology-only strategy misses the main problem",
+        "Invest in adoption, incentives, skills and leadership behavior"
+      ],
+      "verify": true,
+      "source": "NewVantage Partners (now Wavestone), Data and AI Leadership Executive Survey (annual)"
+    },
+    {
+      "id": "str-09",
+      "kind": "concept",
+      "prompt": "DMBOK treats data as an asset. In what ways does data differ from physical and financial assets?",
+      "answer": "Data isn't used up when it's used, and many people can use the same data at the same time for different purposes. It's easy to copy and move, but hard to reproduce if it's lost or destroyed. It can be stolen without being gone. Using it often creates more data. And its value depends on context and quality, which makes it hard to put a price on.",
+      "points": [
+        "Not consumed by use",
+        "Many simultaneous users and purposes",
+        "Easy to copy, hard to reproduce if lost",
+        "Can be stolen without being gone",
+        "Value depends on context and quality, so it's hard to price"
+      ],
+      "why": "Why it matters: these differences are why data needs its own management discipline and can't simply borrow the rules for other assets.",
+      "source": "DAMA-DMBOK2, ch. 1"
+    },
+    {
+      "id": "str-10",
+      "kind": "judgment",
+      "prompt": "The executive team asks: 'What value did the data office deliver this year?' How do you build the answer?",
+      "answer": "Report outcomes, not activity. Tie each piece of work to a decision it improved, time or money it saved, a risk it reduced or revenue it enabled, with a baseline and a number where you can get one. Use a few concrete stories, told by the business unit that benefited. Be honest about foundational work whose payoff comes later, and show the leading indicators that predict it, such as adoption, reuse and time to answer a question. Link all of it to the organization's stated priorities.",
+      "points": [
+        "Outcomes (decisions, time and money, risk, revenue), not activity counts",
+        "Baselines and numbers where possible",
+        "Stories told by the business units that benefited",
+        "Foundational work shown with leading indicators",
+        "Linked to the organization's stated priorities"
+      ],
+      "source": "Synthesis: DalleMule & Davenport (2017); Laney (2017)"
+    }
+  ]
+}

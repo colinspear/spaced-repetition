@@ -213,6 +213,7 @@ Your rating schedules the next review, so be accurate:
 2 = core idea right but important parts missing, vague, or hedged ("I think", "I'm guessing");
 3 = correct, with at most minor omissions;
 4 = complete, precise and confident.
+Judge the answer against what the prompt asks for. Extra explanation that is loosely worded but not false doesn't lower the rating; only a false statement or a missing asked-for part does.
 Reply with only JSON:
 {"points":[{"i":1,"verdict":"hit|partial|miss","note":"at most 12 words"}],"wrong":"a false claim in their answer, or empty string","feedback":"at most 50 words, second person: what was right, what was missing or wrong, and the one thing to remember. No praise padding.","rating":3}
 Include one entry in "points" per key point${c.points?.length ? "" : " (treat the reference answer as a single point)"}.`;
@@ -235,7 +236,7 @@ ${near || "- none"}
 ${calibrationContext(c.deck)}
 Write for someone who knows the field. No definitions of basics, no pep talk. Keep it general: no specific organizations, places, vendors or products unless the card is about one. If attempts have no typed text, infer the likely confusion from the card and its neighbours and say that you are inferring.
 Reply with only JSON:
-{"diagnosis":"1-2 sentences: what they get wrong and why it is tempting","explanation":"at most 120 words","hook":"one memorable handle: a sharp contrast, a concrete workplace example, or a mnemonic","contrast_card":{"prompt":"...","answer":"..."},"rewrite":null}
+{"diagnosis":"1-2 sentences: what they get wrong and why it is tempting","explanation":"at most 120 words","hook":"one memorable handle, at most 40 words: a sharp contrast, a concrete workplace example, or a mnemonic","contrast_card":{"prompt":"...","answer":"..."},"rewrite":null}
 Set "contrast_card" to null unless a discrimination card would help. A contrast card must have one unambiguous, correct answer: check it against the reference before replying, and never let the answer contradict itself. Set "rewrite" to {"prompt","answer"} only if the card itself is ambiguous or overloaded.`;
 }
 function patternsPrompt(missed) {
@@ -352,12 +353,19 @@ async function followUp(id, q) {
 }
 /** The learner's level marks, as worked examples for any prompt that writes cards. */
 function calibrationContext(deck) {
-  const marked = [...S.fb].filter(([id, f]) => f.level && S.byId.has(id));
+  // Each mark keeps the prompt as it read when the learner judged it, so a later rewrite of the
+  // card doesn't change what the example says. Marks already acted on still count as examples.
+  const marked = [];
+  for (const [id, f] of S.fb) {
+    for (const e of [f, ...(f.past || [])]) {
+      const prompt = e.prompt || S.byId.get(id)?.prompt;
+      if (e.level && prompt) marked.push({ level: e.level, note: e.note || "", prompt, deck: e.deck || f.deck || S.byId.get(id)?.deck });
+    }
+  }
   if (!marked.length) return "";
-  const near = (id) => (S.byId.get(id).deck === deck ? 0 : 1);
   const sec = (title, lvl) => {
-    const rows = marked.filter(([, f]) => f.level === lvl).sort(([a], [b]) => near(a) - near(b)).slice(0, 4)
-      .map(([id, f]) => `- "${clip(S.byId.get(id).prompt, 170)}"${f.note ? ` (their note: ${clip(f.note, 160)})` : ""}`);
+    const rows = marked.filter((e) => e.level === lvl).sort((a, b) => (a.deck === deck ? 0 : 1) - (b.deck === deck ? 0 : 1)).slice(0, 5)
+      .map((e) => `- "${clip(e.prompt, 170)}"${e.note ? ` (their note: ${clip(e.note, 200)})` : ""}`);
     return rows.length ? `${title}:\n${rows.join("\n")}\n` : "";
   };
   return `\nLEVEL FEEDBACK FROM THE LEARNER. Aim for what they marked just right; avoid what they marked too basic, too detailed or not useful:
@@ -485,12 +493,13 @@ async function grade() {
   }
   render();
 }
+const seenToday = (id) => (S.logs.get(today()) || []).filter((l) => l.c === id).length;
 function rate(r) {
   const sess = S.session, c = S.byId.get(sess.current);
   if (!c || sess.phase !== "back") return;
   const now = Date.now();
   const prev = S.mem.get(c.id);
-  const res = applyRating({ mem: prev, card: c, rating: r, now, config: S.config, sched: S.sched });
+  const res = applyRating({ mem: prev, card: c, rating: r, now, config: S.config, sched: S.sched, seenToday: seenToday(c.id) });
   // Review cost excludes waiting on Claude and anything after a deeper dive or explanation was opened.
   const paused = sess.pauseAt != null ? performance.now() - sess.pauseAt : 0;
   res.log.d = Math.round(Math.min(Math.max(performance.now() - sess.t0 - sess.waitMs - sess.hiddenMs - paused, 300), 600000));
@@ -508,7 +517,9 @@ function rate(r) {
   sess.reviewed++;
   if (r > 1) sess.passed++;
   sess.lastId = c.id;
-  toast(`${RATING_UI[r]}. ${r === 1 ? "Back" : "Next"} in ${fmtInterval(res.intervalMs)}.`, { label: "Undo", fn: undoLast });
+  toast(res.movedOn
+    ? `That's enough of this card for today. It comes back in ${fmtInterval(res.intervalMs)}. If it isn't clicking, try Go deeper.`
+    : `${RATING_UI[r]}. ${r === 1 ? "Back" : "Next"} in ${fmtInterval(res.intervalMs)}.`, { label: "Undo", fn: undoLast });
   advance();
 }
 function undoLast() {
@@ -528,11 +539,11 @@ async function explain(id) {
   const c = S.byId.get(id);
   if (!c || !claudeReady()) return;
   markPause(id);
-  const x = await ask(`explain:${id}`, explainPrompt(c, attemptsFor(id)));
+  const x = await ask(`explain:${id}`, explainPrompt(c, attemptsFor(id)), { modelTier: "complex" });
   if (!x) return;
   const cc = cleanCard(x.contrast_card ? { ...x.contrast_card, kind: "fact" } : null);
   const rw = cleanCard(x.rewrite ? { ...x.rewrite, kind: c.kind, points: c.points } : null);
-  const rec = { diagnosis: str(x.diagnosis, 600), explanation: str(x.explanation, 1400), hook: str(x.hook, 300), contrast: cc, rewrite: rw, at: Date.now(), attempts: attemptsFor(id).length };
+  const rec = { diagnosis: str(x.diagnosis, 600), explanation: str(x.explanation, 1400), hook: str(x.hook, 600), contrast: cc, rewrite: rw, at: Date.now(), attempts: attemptsFor(id).length };
   S.expl.set(id, rec);
   persist(`explanations/${id}`, rec);
   render();
@@ -548,9 +559,11 @@ function addCustom(card, origin, deck, extra = {}) {
 function setLevel(id, level) {
   const c = S.byId.get(id);
   if (!c) return;
-  const prev = S.fb.get(id) || {};
+  let prev = S.fb.get(id) || {};
+  // A mark Claude has already acted on is archived; a new mark judges the card as it reads now.
+  if (prev.resolved) prev = { past: [...(prev.past || []).slice(-4), { level: prev.level, note: prev.note || "", prompt: prev.prompt, deck: prev.deck, resolved: prev.resolved }], history: prev.history };
   const next = prev.level === level ? null : level;
-  const rec = { level: next, note: prev.note || "", at: Date.now(), deck: c.deck, kind: c.kind, prompt: clip(c.prompt, 300), history: [...(prev.history || []).slice(-9), { level: next, at: Date.now() }] };
+  const rec = { level: next, note: prev.note || "", at: Date.now(), deck: c.deck, kind: c.kind, prompt: clip(c.prompt, 300), history: [...(prev.history || []).slice(-9), { level: next, at: Date.now() }], ...(prev.past ? { past: prev.past } : {}) };
   S.fb.set(id, rec);
   persist(`feedback/${id}`, rec);
   if (!next || next === "right" || next === "irrelevant") S.rewrites.delete(id);
@@ -566,9 +579,9 @@ function saveLevelNote(id, note) {
 }
 async function rewriteLevel(id) {
   const c = S.byId.get(id), f = S.fb.get(id);
-  if (!c || !claudeReady() || !["basic", "detailed"].includes(f?.level)) return;
+  if (!c || !claudeReady() || f?.resolved || !["basic", "detailed"].includes(f?.level)) return;
   markPause(id);
-  const out = await ask(`rewrite:${id}`, rewritePrompt(c, f.level, f.note), { cache: false });
+  const out = await ask(`rewrite:${id}`, rewritePrompt(c, f.level, f.note), { cache: false, modelTier: "complex" });
   if (!out) return;
   const card = cleanCard(out);
   if (!card) S.errs.set(`rewrite:${id}`, "Claude's rewrite came back incomplete. Try again.");
@@ -608,7 +621,7 @@ function toggleFocus(deck) {
 }
 async function deckDraft(deck) {
   if (!claudeReady() || !DECK_META.has(deck)) return;
-  const out = await ask(`deckdraft:${deck}`, deckDraftPrompt(deck), { cache: false });
+  const out = await ask(`deckdraft:${deck}`, deckDraftPrompt(deck), { cache: false, modelTier: "complex" });
   if (!out) return;
   S.add.drafts = (Array.isArray(out.cards) ? out.cards : []).map(cleanCard).filter(Boolean).slice(0, 5).map((d) => ({ ...d, generated: true }));
   S.add.drafted = true;
@@ -715,7 +728,7 @@ ${can ? `<button type="button" class="btn primary" data-act="grade" ${busy || !s
 function backSide(c, m) {
   const sess = S.session;
   const g = sess.grade;
-  const prev = previewIntervals({ mem: m, card: c, now: Date.now(), config: S.config });
+  const prev = previewIntervals({ mem: m, card: c, now: Date.now(), config: S.config, seenToday: seenToday(c.id) });
   const x = S.expl.get(c.id);
   const missed = (m?.agains || 0) >= 1;
   const busyX = S.busy.has(`explain:${c.id}`);
@@ -752,14 +765,16 @@ function whyTiming(c, m, r) {
     return `<details class="why-timing"><summary>What do these buttons do?</summary><p>Each button shows when the card would come back. Pick <b>Knew it</b> if you got it with some effort, <b>Easy</b> only if it was instant, <b>Partly</b> if you had part of it, and <b>Didn't know</b> if you missed it. Higher ratings mean longer gaps.</p>${link}</details>`;
   }
   const now = Date.now();
-  const out = previewOutcome({ mem: m, card: c, now, config: S.config, rating: r });
+  const out = previewOutcome({ mem: m, card: c, now, config: S.config, rating: r, seenToday: seenToday(c.id) });
   const k = S.config.kinds[c.kind] || S.config.kinds.fact;
   const before = isNew(m)
     ? "This is your first time answering this card."
     : `You last answered it ${plainAgo(elapsedDays(m, now, S.config.rolloverHour))}, and the scheduler put your chance of recalling it today at ${pct(currentR(m, now, S.config, S.sched))}.`;
   const verdict = `Claude's verdict, ${VERDICT[r]}, counts as "${RATING_UI[r]}".`;
   const after = isLearning(out.mem)
-    ? `It isn't solid yet, so it comes back in ${fmtInterval(out.intervalMs)} for one more try. A correct answer then moves it out to days.`
+    ? `It isn't solid yet, so it comes back in ${fmtInterval(out.intervalMs)} for one more try today. After that it moves to another day, whatever the result.`
+    : out.movedOn
+    ? `You've already retried it today, and more repeats this evening add little, so it comes back in ${plainDays(out.intervalMs / DAY)}. If the idea isn't clicking, Go deeper will help more than another attempt.`
     : `After this review the scheduler estimates your recall stays above 90% for about ${plainDays(out.mem.stability)}. Your target for ${KIND_NAME[c.kind] || "fact"} cards is ${pct(k.retention)}, so it comes back in ${plainDays(out.intervalMs / DAY)}, when your recall is predicted to reach that target.`;
   return `<details class="why-timing"><summary>Why this timing?</summary><p>${esc(before)} ${esc(verdict)} ${esc(after)}</p>${link}</details>`;
 }
@@ -776,7 +791,7 @@ ${can && (missed || x) ? `<button type="button" class="btn ${isPersistentMiss(m)
 function rateBar(c, m, g, prev) {
   const sess = S.session;
   if (g?.rating && !sess.override) {
-    const after = mastery(previewOutcome({ mem: m, card: c, now: Date.now(), config: S.config, rating: g.rating }).mem);
+    const after = mastery(previewOutcome({ mem: m, card: c, now: Date.now(), config: S.config, rating: g.rating, seenToday: seenToday(c.id) }).mem);
     const before = mastery(m);
     return `<div class="rate accept"><button type="button" class="rate-btn next r${g.rating}" data-act="rate" data-r="${g.rating}"><span>Next</span><small>${g.rating === 1 ? "this card comes back" : "see it again"} in ${fmtInterval(prev[g.rating])} · ${MASTERY[before]}${after !== before ? ` → ${MASTERY[after]}` : ""}</small></button>
 <button type="button" class="btn ghost change" data-act="override">Change rating</button></div>`;
@@ -803,7 +818,8 @@ ${rec && claudeReady() ? `<form class="followup" data-form="followup" data-id="$
 ${err ? `<p class="err">${esc(err)}</p>` : ""}</div>`;
 }
 function levelRow(c) {
-  const f = S.fb.get(c.id), lv = f?.level, rw = S.rewrites.get(c.id), m = S.mem.get(c.id);
+  const f0 = S.fb.get(c.id), f = f0?.resolved ? null : f0, lv = f?.level, rw = S.rewrites.get(c.id), m = S.mem.get(c.id);
+  const acted = f0?.resolved && !c.retired ? `<p class="muted">You marked an earlier version "${esc((LEVEL_LABEL[f0.level] || "").toLowerCase())}". Claude ${esc(f0.resolved.action || "updated it")}. Mark this version if it's still off.</p>` : "";
   const busy = S.busy.has(`rewrite:${c.id}`), err = S.errs.get(`rewrite:${c.id}`), can = claudeReady();
   const follow = {
     basic: [can && ["rewrite-level", "Rewrite it harder"], !m?.suspended && ["suspend", "Stop showing (I know this)"]],
@@ -814,7 +830,7 @@ function levelRow(c) {
 ${LEVELS.map(([k, t]) => `<button type="button" class="pill-btn${lv === k ? " on" : ""}" data-act="level" data-id="${c.id}" data-level="${k}" aria-pressed="${lv === k}">${t}</button>`).join("")}</div>
 ${lv ? `<div class="row small">${follow.filter(Boolean).map(([a, t]) => `<button type="button" class="btn ghost" data-act="${a}" data-id="${c.id}" ${a === "rewrite-level" && busy ? "disabled" : ""}>${a === "rewrite-level" && busy ? "Claude is rewriting…" : t}</button>`).join("")}
 <form class="level-note" data-form="level-note" data-id="${c.id}"><label class="sr" for="ln-${c.id}">What would make it better?</label><input id="ln-${c.id}" name="note" type="text" placeholder="Optional: what would be more useful?" value="${esc(f?.note || "")}" autocomplete="off"><button class="btn ghost" type="submit">Save note</button></form></div>` : ""}
-${err ? `<p class="err">${esc(err)}</p>` : ""}${rw ? rewritePreview(c, rw) : ""}</div>`;
+${acted}${err ? `<p class="err">${esc(err)}</p>` : ""}${rw ? rewritePreview(c, rw) : ""}</div>`;
 }
 function rewritePreview(c, rw) {
   return `<div class="rewrite"><span class="lbl">Claude's rewrite · ${esc(rw.kind)}</span>${rw.change ? `<p class="muted">${esc(rw.change)}</p>` : ""}
@@ -895,7 +911,7 @@ ${list.length ? `<ul class="cardlist">${list.map(cardRow).join("")}</ul>` : q ? 
 function cardRow(c) {
   const m = S.mem.get(c.id);
   const lvl = MASTERY[mastery(m)].toLowerCase();
-  const st = m?.suspended ? "not showing" : isNew(m) ? "new" : isLearning(m) ? "learning · back today" : `${lvl} · next ${new Date(m.due).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+  const st = c.retired ? "retired" : m?.suspended ? "not showing" : isNew(m) ? "new" : isLearning(m) ? "learning · back today" : `${lvl} · next ${new Date(m.due).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
   const open = S.cat.open === c.id;
   return `<li class="crow${open ? " open" : ""}"><button type="button" class="crow-head" data-act="open" data-id="${c.id}" aria-expanded="${open}"><span class="callno">${esc(callNumber(c))}</span><span class="cprompt">${esc(clip(c.prompt, 110))}</span><span class="cmeta">${st}${m?.agains ? ` · missed ${m.agains}×` : ""}${S.deep.has(c.id) ? " · deeper dive saved" : ""}</span></button>
 ${open ? `<div class="cdetail">${cardHead(c)}<p class="prompt sm">${fmt(c.prompt)}</p><p>${fmt(c.answer)}</p>${c.points?.length ? `<ol class="points">${c.points.map((p) => `<li><span>${fmt(p)}</span></li>`).join("")}</ol>` : ""}${c.why ? `<p class="why">${fmt(c.why)}</p>` : ""}
@@ -959,7 +975,7 @@ ${can && (m?.agains || 0) >= 1 ? `<button type="button" class="btn ghost" data-a
 ${S.errs.get("explain:" + c.id) ? `<p class="err">${esc(S.errs.get("explain:" + c.id))}</p>` : ""}</article>`;
 }
 function missesPanels() {
-  const missed = S.cards.map((c) => ({ c, m: S.mem.get(c.id) })).filter(({ m }) => m?.agains > 0).sort((a, b) => b.m.agains - a.m.agains);
+  const missed = S.cards.filter((c) => !c.retired && !S.mem.get(c.id)?.suspended).map((c) => ({ c, m: S.mem.get(c.id) })).filter(({ m }) => m?.agains > 0).sort((a, b) => b.m.agains - a.m.agains);
   const ins = S.insights;
   const busy = S.busy.has("patterns");
   return `<section class="panel"><h2>What you keep missing</h2>
@@ -1065,8 +1081,8 @@ ${revs.map((r, i) => `<tr><td>${i + 1}</td><td class="num">${r.day}</td><td clas
 
 <h3>What Claude's verdict does</h3>
 <div class="scroll"><table><thead><tr><th>Verdict</th><th>Counts as</th><th>What happens</th></tr></thead><tbody>
-<tr><td>Not yet</td><td>Didn't know</td><td>Stability drops. The card comes back in 10 minutes for one more try.</td></tr>
-<tr><td>Partly right</td><td>Partly</td><td>A shorter gap than a full success, and the card counts as a little more difficult.</td></tr>
+<tr><td>Not yet</td><td>Didn't know</td><td>Stability drops. The card comes back in 10 minutes for another try.</td></tr>
+<tr><td>Partly right</td><td>Partly</td><td>A shorter gap than a full success, and the card counts as a little more difficult. On a card you're still learning, it comes back once the same day.</td></tr>
 <tr><td>Right</td><td>Knew it</td><td>Normal growth.</td></tr>
 <tr><td>Spot on</td><td>Easy</td><td>The longest gap.</td></tr>
 </tbody></table></div>
@@ -1076,8 +1092,9 @@ ${revs.map((r, i) => `<tr><td>${i + 1}</td><td class="num">${r.day}</td><td clas
 <ul>
 <li><b>Done</b>: cards finished for today.</li>
 <li><b>To go</b>: cards due today that you haven't seen yet, plus today's new cards.</li>
-<li><b>Coming back</b>: cards you missed, waiting a few minutes for another try.</li>
+<li><b>Coming back</b>: cards you missed or only partly knew, waiting a few minutes for another try.</li>
 </ul>
+<p>No card shows more than ${cfg.maxShowingsPerDay || 3} times in a day. A partly-right answer gets one retry and then waits for another day, because a night's sleep does more for a half-learned idea than a fourth attempt in one evening. If a card keeps coming back partly right, use <b>Go deeper</b> or <b>Why do I keep missing this?</b>.</p>
 <p>New cards rotate across decks. To learn one deck sooner, open it in the Catalog and press <b>Focus new cards here</b>. Each day brings up to ${cfg.newPerDay} new cards and at most ${cfg.reviewsPerDay} reviews. After days off, overdue cards beyond that cap wait without penalty, and the ones fading fastest come first. New cards pause until the pile clears. Change these limits in Tuning.</p>
 
 <h3>Mastery</h3>
