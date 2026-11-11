@@ -23,10 +23,12 @@ export const DEFAULT_CONFIG = Object.freeze({
   intervalScale: 1, // stage-1 personal calibration (see fitScale)
   deckWeights: {},
   focusDecks: [], // new cards from these decks are introduced first
-  // A card is shown at most this many times in one study day. A partly-right answer on a card
-  // still being learned gets one same-day retry, then moves to tomorrow. Added after the first
-  // real review log showed 35% of study time going to same-evening repeats of the same cards.
-  maxShowingsPerDay: 3,
+  // Successive relearning (Rawson & Dunlosky): a card still being learned comes back the same
+  // day until it is fully recalled once, then moves to other days. The cap bounds the cost: the
+  // first real review log showed 36% of study time going to an unlimited same-evening loop.
+  // Retries are spaced 10 minutes, then 20. A card that hits the cap comes back the next day.
+  maxShowingsPerDay: 4,
+  retryMinutes: [10, 20],
   source: "defaults",
   updatedAt: null,
   history: [],
@@ -214,16 +216,25 @@ export function applyRating({ mem, card, rating, now, config, sched, seenToday =
   const base = isNew(mem) ? blankMemory(now) : { ...blankMemory(now), ...mem };
   const e = elapsedDays(base, now, config.rolloverHour);
   const opts = kindOpts(config, card.kind);
-  // Same-day cap: in the learning steps, the second showing today moves on unless it was a
-  // complete miss, and the last allowed showing moves on whatever the rating. "Moves on" means
-  // FSRS schedules the card in days from its stability, so it comes back tomorrow at the earliest.
+  // Same-day cap: a card in the learning steps keeps coming back until a full recall (Good or
+  // Easy), but the last allowed showing of the day moves it on whatever the rating.
   const inSteps = !isNew(base) && (base.state === State.Learning || base.state === State.Relearning);
-  const cap = Math.max(1, config.maxShowingsPerDay ?? 3);
-  const movedOn = inSteps && ((seenToday >= 1 && rating >= Rating.Hard) || seenToday + 1 >= cap);
+  const cap = Math.max(1, config.maxShowingsPerDay ?? 4);
+  const movedOn = inSteps && seenToday + 1 >= cap;
   if (movedOn) { opts.learningSteps = []; opts.relearningSteps = []; }
   const p = isNew(base) ? null : sched.retrievability(base.stability * opts.intervalScale, e);
   const fsrsCard = { state: base.state, step: base.step, stability: base.stability, difficulty: base.difficulty, due: base.due, lastReview: base.lastReview };
-  const { card: c, intervalDays, intervalMs } = sched.review(fsrsCard, rating, now, e, opts);
+  let { card: c, intervalDays, intervalMs } = sched.review(fsrsCard, rating, now, e, opts);
+  if (c.state === State.Learning || c.state === State.Relearning) {
+    // Still being learned: space the retries, wider each time.
+    const gaps = config.retryMinutes?.length ? config.retryMinutes : [10, 20];
+    intervalMs = gaps[Math.min(seenToday, gaps.length - 1)] * MINUTE;
+    c = { ...c, due: now + intervalMs };
+  } else if (movedOn && rating < Rating.Good) {
+    // Capped without a full recall: back the next day, never later.
+    intervalDays = 1; intervalMs = DAY;
+    c = { ...c, due: now + DAY };
+  }
   const next = {
     ...base,
     ...c,

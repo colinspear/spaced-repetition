@@ -89,6 +89,7 @@ test("a known card moves straight to days; a missed one comes back once in-sessi
   const f = applyRating({ mem: undefined, card: fact, rating: 1, now: T0, config, sched });
   assert.ok(isLearning(f.mem));
   assert.equal(f.intervalMs, 10 * MINUTE);
+  assert.equal(f.mem.due, T0 + 10 * MINUTE);
   const back = applyRating({ mem: f.mem, card: fact, rating: 3, now: T0 + 10 * MINUTE, config, sched });
   assert.equal(back.mem.state, State.Review, "one good retry graduates it");
   const j = applyRating({ mem: undefined, card: judg, rating: 3, now: T0, config, sched });
@@ -176,32 +177,37 @@ test("focus decks introduce their new cards first", () => {
   assert.deepEqual(plain, ["gov-01", "arc-01", "mod-01", "gov-02"]);
 });
 
-test("same-day cap: a partly-right answer gets one retry, then tomorrow; nothing shows more than three times a day", () => {
+test("same-day relearning: retry until fully right once, spaced 10 then 20 minutes, capped at four showings", () => {
   const config = cfg();
   const sched = schedulerFor(config, { fuzz: false });
   const card = { id: "c", deck: "mod", kind: "concept" };
   const go = (mem, rating, minutes, seenToday) => applyRating({ mem, card, rating, now: T0 + minutes * MINUTE, config, sched, seenToday });
-  // Partly, then Partly again: the second showing moves on to days.
+  // Partly, partly, partly, partly: three retries, then the cap sends it to tomorrow.
   const a1 = go(undefined, 2, 0, 0);
-  assert.ok(isLearning(a1.mem), "first Partly comes back today");
-  const a2 = go(a1.mem, 2, 15, 1);
-  assert.equal(a2.mem.state, State.Review);
-  assert.ok(a2.intervalMs >= DAY && a2.movedOn && a2.log.cap === 1);
-  // Miss, miss, miss: retried twice, then tomorrow.
-  const b1 = go(undefined, 1, 0, 0);
-  const b2 = go(b1.mem, 1, 10, 1);
-  assert.ok(isLearning(b2.mem), "a second miss still gets one more try");
-  const b3 = go(b2.mem, 1, 20, 2);
-  assert.equal(b3.mem.state, State.Review);
-  assert.ok(b3.intervalMs >= DAY && b3.intervalMs <= 2 * DAY, "a card that was never recalled comes back tomorrow");
-  // A good retry is not flagged as capped.
-  const c2 = go(b1.mem, 3, 10, 1);
-  assert.equal(c2.mem.state, State.Review);
-  assert.equal(c2.movedOn, false);
-  // A card still in learning from yesterday follows the same rule on its first showing today.
-  const d = applyRating({ mem: a1.mem, card, rating: 2, now: T0 + DAY, config, sched, seenToday: 0 });
+  assert.ok(isLearning(a1.mem));
+  assert.equal(a1.intervalMs, 10 * MINUTE, "first retry after 10 minutes");
+  const a2 = go(a1.mem, 2, 10, 1);
+  assert.ok(isLearning(a2.mem), "a second Partly still comes back today");
+  assert.equal(a2.intervalMs, 20 * MINUTE, "later retries are 20 minutes apart");
+  const a3 = go(a2.mem, 1, 30, 2);
+  assert.ok(isLearning(a3.mem));
+  assert.equal(a3.intervalMs, 20 * MINUTE);
+  const a4 = go(a3.mem, 2, 50, 3);
+  assert.equal(a4.mem.state, State.Review);
+  assert.equal(a4.intervalMs, DAY, "capped without a full recall: exactly the next day");
+  assert.ok(a4.movedOn && a4.log.cap === 1);
+  // Getting it fully right once ends the day's retries and is not flagged as capped.
+  const b = go(a2.mem, 3, 30, 2);
+  assert.equal(b.mem.state, State.Review);
+  assert.ok(b.intervalMs >= DAY && !b.movedOn);
+  // A full recall on the last allowed showing keeps its normal interval.
+  const c4 = go(a3.mem, 3, 50, 3);
+  assert.ok(!c4.movedOn && c4.intervalMs >= DAY);
+  // A card still in learning from yesterday starts a fresh count today.
+  const d = applyRating({ mem: a2.mem, card, rating: 2, now: T0 + DAY, config, sched, seenToday: 0 });
   assert.ok(isLearning(d.mem));
+  assert.equal(d.intervalMs, 10 * MINUTE);
   // The preview on the buttons matches what rating does.
-  const pv = previewIntervals({ mem: a1.mem, card, now: T0 + 15 * MINUTE, config, seenToday: 1 });
-  assert.ok(pv[1] < DAY && pv[2] >= DAY && pv[3] >= pv[2]);
+  const pv = previewIntervals({ mem: a3.mem, card, now: T0 + 50 * MINUTE, config, seenToday: 3 });
+  assert.equal(pv[1], DAY); assert.equal(pv[2], DAY); assert.ok(pv[3] >= DAY);
 });

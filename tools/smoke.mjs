@@ -247,21 +247,36 @@ await fx.click('[data-act="reveal"]');
 await fx.click(".rate-btn.r3");
 assert.equal((await fx.textContent(".callno")).trim(), "ARC·01");
 
-// Same-day cap: a card already retried today moves to another day on a second "Partly"
+// Same-day relearning: a second Partly comes back again today, and Claude diagnoses it first
 const capPage = await newPage({ viewport: { width: 800, height: 900 } }, true, () => {
   const now = Date.now(), d = new Date(now - 4 * 3600000), p = (n) => String(n).padStart(2, "0");
   const day = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-  window.__mock.docs.set("cards/gov-01", { state: 1, step: 0, stability: 1.2931, difficulty: 5.1, due: now - 1000, lastReview: now - 15 * 60000, reps: 1, lapses: 0, agains: 0, suspended: false });
-  window.__mock.docs.set(`reviews/${day}`, { day, items: [{ c: "gov-01", k: "concept", r: 2, t: now - 15 * 60000, st: 0, s: null, e: null, p: null, i: null, d: 60000 }] });
+  const item = (m) => ({ c: "gov-01", k: "concept", r: 2, t: now - m * 60000, st: 1, s: 1.29, e: 0, p: 1, i: null, d: 60000 });
+  window.__mock.docs.set("cards/gov-01", { state: 1, step: 0, stability: 1.2931, difficulty: 5.1, due: now - 1000, lastReview: now - 10 * 60000, reps: 1, lapses: 0, agains: 0, suspended: false });
+  window.__mock.docs.set(`reviews/${day}`, { day, items: [item(10)] });
+  window.__seedDay = day; window.__item = item;
 });
 assert.equal((await capPage.textContent(".callno")).trim(), "GOV·01", "the retry comes up first");
-await capPage.click('[data-act="reveal"]');
-assert.match(await capPage.textContent(".rate-btn.r1"), /10m/);
-assert.match(await capPage.textContent(".rate-btn.r2"), /\dd/, "a second Partly schedules days, not minutes");
-await capPage.click(".rate-btn.r2");
-assert.match(await capPage.textContent("#toast"), /enough of this card for today/);
-assert.equal(await capPage.evaluate(() => window.__mock.docs.get("cards/gov-01").state), 2);
-assert.match(await capPage.textContent(".status"), /1 done/);
+await capPage.fill("#answer-box", "The owner is accountable.");
+await capPage.click('[data-act="grade"]');
+await capPage.waitForSelector(".tailored");
+assert.match(await capPage.textContent(".tailored"), /swap steward and custodian/, "second shaky answer gets a diagnosis");
+assert.match(await capPage.textContent(".rate-btn.next"), /20m/, "a second Partly comes back again today, 20 minutes later");
+await capPage.click(".rate-btn.next");
+assert.equal(await capPage.evaluate(() => window.__mock.docs.get("cards/gov-01").state), 1);
+// Fourth showing of the day: whatever the rating short of a full recall, it goes to tomorrow
+const lastPage = await newPage({ viewport: { width: 800, height: 900 } }, true, () => {
+  const now = Date.now(), d = new Date(now - 4 * 3600000), p = (n) => String(n).padStart(2, "0");
+  const day = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  const item = (m) => ({ c: "gov-01", k: "concept", r: 2, t: now - m * 60000, st: 1, s: 1.29, e: 0, p: 1, i: null, d: 60000 });
+  window.__mock.docs.set("cards/gov-01", { state: 1, step: 0, stability: 1.2931, difficulty: 7, due: now - 1000, lastReview: now - 20 * 60000, reps: 3, lapses: 0, agains: 0, suspended: false });
+  window.__mock.docs.set(`reviews/${day}`, { day, items: [item(60), item(50), item(20)] });
+});
+await lastPage.click('[data-act="reveal"]');
+assert.match(await lastPage.textContent(".rate-btn.r2"), /1d/);
+await lastPage.click(".rate-btn.r2");
+assert.match(await lastPage.textContent("#toast"), /comes back tomorrow/);
+assert.equal(await lastPage.evaluate(() => window.__mock.docs.get("cards/gov-01").state), 2);
 
 // Fresh scenario on a judgment card seen before, graded against the same key points; then teach-back in Study
 const vp = await newPage({ viewport: { width: 800, height: 900 } }, true, () => {

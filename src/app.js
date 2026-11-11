@@ -538,6 +538,9 @@ async function grade() {
     };
     sess.phase = "back";
     saveDraft();
+    // Second shaky answer today on a card still being learned: diagnose before the next try.
+    const x = S.expl.get(c.id);
+    if (sess.grade.rating && sess.grade.rating <= 2 && seenToday(c.id) >= 1 && (!x || Date.now() - x.at > 7 * DAY) && !S.busy.has(`explain:${c.id}`)) explain(c.id);
   }
   render();
 }
@@ -567,7 +570,7 @@ function rate(r) {
   if (r > 1) sess.passed++;
   sess.lastId = c.id;
   toast(res.movedOn
-    ? `That's enough of this card for today. It comes back in ${fmtInterval(res.intervalMs)}. If it isn't clicking, try Go deeper.`
+    ? `That's enough of this card for today. It comes back tomorrow. If it isn't clicking, try Go deeper.`
     : `${RATING_UI[r]}. ${r === 1 ? "Back" : "Next"} in ${fmtInterval(res.intervalMs)}.`, { label: "Undo", fn: undoLast });
   advance();
 }
@@ -825,9 +828,9 @@ function whyTiming(c, m, r) {
     : `You last answered it ${plainAgo(elapsedDays(m, now, S.config.rolloverHour))}, and the scheduler put your chance of recalling it today at ${pct(currentR(m, now, S.config, S.sched))}.`;
   const verdict = `Claude's verdict, ${VERDICT[r]}, counts as "${RATING_UI[r]}".`;
   const after = isLearning(out.mem)
-    ? `It isn't solid yet, so it comes back in ${fmtInterval(out.intervalMs)} for one more try today. After that it moves to another day, whatever the result.`
+    ? `It isn't solid yet, so it comes back in ${fmtInterval(out.intervalMs)} for another try. It keeps coming back today until you get it fully right once, up to ${S.config.maxShowingsPerDay || 4} showings.`
     : out.movedOn
-    ? `You've already retried it today, and more repeats this evening add little, so it comes back in ${plainDays(out.intervalMs / DAY)}. If the idea isn't clicking, Go deeper will help more than another attempt.`
+    ? `That was its last showing for today, and more repeats this evening add little, so it comes back tomorrow. If the idea isn't clicking, Go deeper will help more than another attempt.`
     : `After this review the scheduler estimates your recall stays above 90% for about ${plainDays(out.mem.stability)}. Your target for ${KIND_NAME[c.kind] || "fact"} cards is ${pct(k.retention)}, so it comes back in ${plainDays(out.intervalMs / DAY)}, when your recall is predicted to reach that target.`;
   return `<details class="why-timing"><summary>Why this timing?</summary><p>${esc(before)} ${esc(verdict)} ${esc(after)}</p>${link}</details>`;
 }
@@ -1147,7 +1150,7 @@ function viewGuide() {
 <li><b>Difficulty</b>: how hard the card is for you. Stability grows more slowly on difficult cards.</li>
 </ul>
 <p>A card comes due when your predicted chance of recalling it falls to its target: ${t("fact")} for facts, ${t("concept")} for concepts, ${t("judgment")} for scenarios. That's the useful moment to review: recall takes some effort, which is what strengthens the memory, and you'll usually still get it right.</p>
-<p>Each correct answer multiplies stability, so the gaps grow fast. A fact you get right every time comes back after ${gaps.join(", then ")}. That's ${revs.length} reviews in ${Math.round(c.days / 30.4)} months. A miss cuts stability and brings the card back in 10 minutes, then again after a short gap.</p>
+<p>Each correct answer multiplies stability, so the gaps grow fast. A fact you get right every time comes back after ${gaps.join(", then ")}. That's ${revs.length} reviews in ${Math.round(c.days / 30.4)} months. A miss cuts stability and brings the card back in 10 minutes.</p>
 
 <figure class="chart-card"><figcaption><p class="chart-title">Chance you'd recall a fact over ${Math.round(c.days / 30.4)} months</p>
 <div class="legend"><span><i class="key s1"></i>With reviews</span><span><i class="key s2"></i>Without reviews</span></div></figcaption>
@@ -1174,7 +1177,7 @@ ${revs.map((r, i) => `<tr><td>${i + 1}</td><td class="num">${r.day}</td><td clas
 <h3>What Claude's verdict does</h3>
 <div class="scroll"><table><thead><tr><th>Verdict</th><th>Counts as</th><th>What happens</th></tr></thead><tbody>
 <tr><td>Not yet</td><td>Didn't know</td><td>Stability drops. The card comes back in 10 minutes for another try.</td></tr>
-<tr><td>Partly right</td><td>Partly</td><td>A shorter gap than a full success, and the card counts as a little more difficult. On a card you're still learning, it comes back once the same day.</td></tr>
+<tr><td>Partly right</td><td>Partly</td><td>A shorter gap than a full success, and the card counts as a little more difficult. On a card you're still learning, it comes back the same day until you get it fully right.</td></tr>
 <tr><td>Right</td><td>Knew it</td><td>Normal growth.</td></tr>
 <tr><td>Spot on</td><td>Easy</td><td>The longest gap.</td></tr>
 </tbody></table></div>
@@ -1186,7 +1189,7 @@ ${revs.map((r, i) => `<tr><td>${i + 1}</td><td class="num">${r.day}</td><td clas
 <li><b>To go</b>: cards due today that you haven't seen yet, plus today's new cards.</li>
 <li><b>Coming back</b>: cards you missed or only partly knew, waiting a few minutes for another try.</li>
 </ul>
-<p>No card shows more than ${cfg.maxShowingsPerDay || 3} times in a day. A partly-right answer gets one retry and then waits for another day, because a night's sleep does more for a half-learned idea than a fourth attempt in one evening. If a card keeps coming back partly right, use <b>Go deeper</b> or <b>Why do I keep missing this?</b>.</p>
+<p>A card you're still learning comes back the same day until you get it fully right once: after 10 minutes, then every 20. Research on relearning finds one full recall per session is the point to aim for, and that further repeats the same evening add little compared with coming back on another day. So no card shows more than ${cfg.maxShowingsPerDay || 4} times in a day, and one that hits that limit comes back tomorrow. After a second shaky answer, Claude explains what your answers are missing before the next try.</p>
 <p>New cards rotate across decks. To learn one deck sooner, open it in the Catalog and press <b>Focus new cards here</b>. Each day brings up to ${cfg.newPerDay} new cards and at most ${cfg.reviewsPerDay} reviews. After days off, overdue cards beyond that cap wait without penalty, and the ones fading fastest come first. New cards pause until the pile clears. Change these limits in Tuning.</p>
 
 <h3>Mastery</h3>
